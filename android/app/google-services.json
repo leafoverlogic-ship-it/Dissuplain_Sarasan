@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "578122947207",
+    "firebase_url": "https://dissuplain-vardan-202508091657-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "dissuplain-vardan-202508091657",
+    "storage_bucket": "dissuplain-vardan-202508091657.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:578122947207:android:c5148db7f723c731e83622",
+        "android_client_info": {
+          "package_name": "com.example.dissuplain_app_web_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7hHmzCkNQbrSSdcGC2Sc9BFBZDcNUXP8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,6 @@
+|||| RUNNING WITHOUT DEBUG ||||
+flutter run --release -d chrome
+
+|| REDEPLOYMENT TO FIREBASE ||
+flutter build web
+firebase deploy --only hosting
