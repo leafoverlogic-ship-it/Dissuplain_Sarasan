@@ -360,16 +360,18 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
       // Seed once; don’t overwrite on rebuild
       _dropdownValues[key] ??= currentValue.isEmpty ? null : currentValue;
 
-      const base = ['Active', 'NA', 'Prospect', '']; // allowed values
+      const base = ['Active', 'Prospect', 'Hot', 'Warm', 'Cold', 'NA']; // allowed values
       final items = <DropdownMenuItem<String>>[
         // Ensure current DB value is selectable even if not in base list
         if (currentValue.isNotEmpty && !base.contains(currentValue))
           DropdownMenuItem(value: currentValue, child: Text(currentValue)),
         // Base items
         const DropdownMenuItem(value: 'Active', child: Text('Active')),
-        const DropdownMenuItem(value: 'NA', child: Text('NA')),
         const DropdownMenuItem(value: 'Prospect', child: Text('Prospect')),
-        const DropdownMenuItem(value: '', child: Text('')),
+        const DropdownMenuItem(value: 'Hot', child: Text('Hot')),
+        const DropdownMenuItem(value: 'Warm', child: Text('Warm')),
+        const DropdownMenuItem(value: 'Cold', child: Text('Cold')),
+        const DropdownMenuItem(value: 'NA', child: Text('NA')),
       ];
 
       return _wrapEditor(

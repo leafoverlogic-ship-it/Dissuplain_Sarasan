@@ -81,7 +81,7 @@ class _NewClientPageState extends State<NewClientPage> {
   // GST
   final _gstNumberCtrl = TextEditingController(); // 15 (alphanumeric)
   // Business / Status
-  String? _statusValue; // Active, NA, Prospect, (blank)
+  String? _statusValue; // Active, NA, Hot, Warm, Cold, Prospect
   String? _visitDaysValue; // MON..SUN
   String? _businessSlabValue; // <=500, 500-1000, ...
   final _businessCatCtrl = TextEditingController(); // auto (read-only)
@@ -1287,15 +1287,12 @@ class _NewClientPageState extends State<NewClientPage> {
                   value: _statusValue,
                   items: const [
                     DropdownMenuItem(value: 'Active', child: Text('Active')),
+                    DropdownMenuItem(value: 'Prospect', child: Text('Prospect')),
+                    DropdownMenuItem(value: 'Hot', child: Text('Hot')),
+                    DropdownMenuItem(value: 'Warm', child: Text('Warm')),
+                    DropdownMenuItem(value: 'Cold', child: Text('Cold')),
                     DropdownMenuItem(value: 'NA', child: Text('NA')),
-
-                    DropdownMenuItem(
-                      value: 'Prospect',
-                      child: Text('Prospect'),
-                    ),
-
-                    DropdownMenuItem(value: '(blank)', child: Text('(blank)')),
-                  ],
+                    ],
                   onChanged: (v) => setState(() => _statusValue = v),
                 ),
                 const SizedBox(height: 12),
