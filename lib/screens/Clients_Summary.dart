@@ -71,44 +71,61 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
   void initState() {
     super.initState();
 
-    _regionsRepo.streamRegions().listen((rows) {
-      setState(() {
-        _regions = rows;
+    _regionsRepo.streamRegions().listen(
+      (rows) {
+        setState(() {
+          _regions = rows;
+          _lr = false;
+        });
+      },
+      onError: (e) => setState(() {
         _lr = false;
-      });
-    }, onError: (e) => setState(() {
-      _lr = false;
-      _er = '$e';
-    }));
+        _er = '$e';
+      }),
+    );
 
-    _areasRepo.streamAreas().listen((rows) {
-      setState(() {
-        _areas = rows.map((a) => AreaEntry(
-          areaId: _s(a.areaId),
-          areaName: a.areaName,
-          regionId: _s(a.regionId),
-        )).toList();
+    _areasRepo.streamAreas().listen(
+      (rows) {
+        setState(() {
+          _areas = rows
+              .map(
+                (a) => AreaEntry(
+                  areaId: _s(a.areaId),
+                  areaName: a.areaName,
+                  regionId: _s(a.regionId),
+                ),
+              )
+              .toList();
+          _la = false;
+        });
+      },
+      onError: (e) => setState(() {
         _la = false;
-      });
-    }, onError: (e) => setState(() {
-      _la = false;
-      _ea = '$e';
-    }));
+        _ea = '$e';
+      }),
+    );
 
-    _subAreasRepo.streamSubAreas().listen((rows) {
-      setState(() {
-        _subAreas = rows.map((s) => SubAreaEntry(
-          subareaId: _s(s.subareaId),
-          subareaName: s.subareaName,
-          areaId: _s(s.areaId),
-          regionId: _s(s.regionId),
-        )).toList();
+    _subAreasRepo.streamSubAreas().listen(
+      (rows) {
+        setState(() {
+          _subAreas = rows
+              .map(
+                (s) => SubAreaEntry(
+                  subareaId: _s(s.subareaId),
+                  subareaName: s.subareaName,
+                  areaId: _s(s.areaId),
+                  regionId: _s(s.regionId),
+                ),
+              )
+              .toList();
+          _ls = false;
+        });
+      },
+      onError: (e) => setState(() {
         _ls = false;
-      });
-    }, onError: (e) => setState(() {
-      _ls = false;
-      _es = '$e';
-    }));
+        _es = '$e';
+      }),
+    );
 
     // SubareaID -> assignedSE
     _db.ref('SubAreas').onValue.listen((event) {
@@ -137,66 +154,31 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       setState(() => _assignedSEBySubareaId = map);
     });
 
-    _customersRepo.streamCustomers().listen((rows) {
-      setState(() {
-        _clients = rows;
+    _customersRepo.streamCustomers().listen(
+      (rows) {
+        setState(() {
+          _clients = rows;
+          _lc = false;
+        });
+      },
+      onError: (e) => setState(() {
         _lc = false;
-      });
-    }, onError: (e) => setState(() {
-      _lc = false;
-      _ec = '$e';
-    }));
+        _ec = '$e';
+      }),
+    );
 
-    _usersRepo.streamUsers().listen((rows) {
-      setState(() {
-        _users = rows;
+    _usersRepo.streamUsers().listen(
+      (rows) {
+        setState(() {
+          _users = rows;
+          _lu = false;
+        });
+      },
+      onError: (e) => setState(() {
         _lu = false;
-      });
-    }, onError: (e) => setState(() {
-      _lu = false;
-      _eu = '$e';
-    }));
-  }
-
-  // Filtering helpers (as in your base code)
-  bool _isClientVisible(Map<String, dynamic> m) {
-    final role = (widget.roleId ?? '').trim();
-    final regionId = (m['regionID'] ?? m['regionId'] ?? '').toString();
-    final areaId = (m['areaID'] ?? m['areaId'] ?? '').toString();
-    final subareaId = (m['subareaID'] ?? m['subareaId'] ?? '').toString();
-
-    if (role == '4' || role == '5' || role == '6' || role == '7') return true;
-
-    if (role == '3') {
-      final allowed = widget.allowedRegionIds ?? const [];
-      if (allowed.isEmpty) return false;
-      return allowed.contains(regionId);
-    }
-
-    if (role == '2') {
-      final allowed = widget.allowedAreaIds ?? const [];
-      if (allowed.isEmpty) return false;
-      return allowed.contains(areaId);
-    }
-
-    if (role == '1') {
-      final allowed = widget.allowedSubareaIds ?? const [];
-      if (allowed.isEmpty) return false;
-      return allowed.contains(subareaId);
-    }
-
-    final regOK =
-        (widget.allowedRegionIds?.isEmpty ?? true) ||
-        (widget.allowedRegionIds?.contains(regionId) ?? false);
-
-    final areaOK =
-        (widget.allowedAreaIds?.isEmpty ?? true) ||
-        (widget.allowedAreaIds?.contains(areaId) ?? false);
-
-    final subOK =
-        (widget.allowedSubareaIds?.isEmpty ?? true) ||
-        (widget.allowedSubareaIds?.contains(subareaId) ?? false);
-    return regOK && areaOK && subOK;
+        _eu = '$e';
+      }),
+    );
   }
 
   // Region/area/subarea/lookup functions (as in your starter code)
@@ -204,12 +186,14 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       .firstWhere(
         (r) => _s(r.regionId) == id,
         orElse: () => const RegionEntry(regionId: '', regionName: '—'),
-      ).regionName;
+      )
+      .regionName;
   String _areaName(String id) => _areas
       .firstWhere(
         (a) => _s(a.areaId) == id,
         orElse: () => const AreaEntry(areaId: '', areaName: '—', regionId: ''),
-      ).areaName;
+      )
+      .areaName;
   String _subareaName(String id) => _subAreas
       .firstWhere(
         (s) => _s(s.subareaId) == id,
@@ -219,7 +203,8 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
           areaId: '',
           regionId: '',
         ),
-      ).subareaName;
+      )
+      .subareaName;
 
   String _salesPersonName(String subareaId) {
     final assignedId = _assignedSEBySubareaId[subareaId] ?? '';
@@ -238,82 +223,18 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
     return user.salesPersonName;
   }
 
-  // Last activity log fetch
-  Future<Map<String, dynamic>?> _fetchLastActivityLog(String? customerCode) async {
-    if (customerCode == null || customerCode.isEmpty) return null;
+  // normalize helper (reuse yours if you already have one)
+  String _norm(String? s) => (s ?? '').trim();
+  final Map<String, Map<String, dynamic>> _clientByCode = {};
+  final Map<String, Map<String, dynamic>> _latestLogByCode = {};
+  String _normCode(String? s) => (s ?? '').trim().toLowerCase();
 
-    final ref = FirebaseDatabase.instance.ref('ActivityLogs/$customerCode');
-    final snap = await ref.get();
-
-    Map<String, dynamic>? best;
-    int bestMillis = -1;
-    int _ms(Map<String, dynamic> m) {
-      final a = m['dateTimeMillis'];
-      if (a is int) return a;
-      final b = m['dateTime'];
-      if (b is int) return b;
-      if (b is String) {
-        final n = int.tryParse(b);
-        if (n != null && n > 1000000) return n;
-      }
-      return 0;
+  String _pickAny(Map m, List<String> ks) {
+    for (final k in ks) {
+      final v = (m[k]?.toString() ?? '').trim();
+      if (v.isNotEmpty) return v;
     }
-    for (final child in snap.children) {
-      final raw = child.value;
-      if (raw is Map) {
-        final Map<String, dynamic> m = {};
-        (raw as Map).forEach((k, v) => m[k.toString()] = v);
-        final t = _ms(m);
-        if (t > bestMillis) { bestMillis = t; best = m; }
-      }
-    }
-    return best;
-  }
-
-  Future<String> _salesPersonNameForSubarea(String? subareaId) async {
-    if (subareaId == null || subareaId.trim().isEmpty) return '—';
-    String assignedId = '';
-    for (final key in const ['assignedSE', 'assignedSe', 'assignedse']) {
-      final s = await FirebaseDatabase.instance
-          .ref('SubAreas/$subareaId/$key')
-          .get();
-      final v = (s.value ?? '').toString().trim();
-      if (v.isNotEmpty) { assignedId = v; break; }
-    }
-    if (assignedId.isEmpty) return '—';
-    final nameSnap = await FirebaseDatabase.instance
-        .ref('Users/$assignedId/Name')
-        .get();
-    final nm = (nameSnap.value ?? '').toString().trim();
-    return nm.isEmpty ? assignedId : nm;
-  }
-
-  Future<String> _subareaNameById(String? subareaId) async {
-    if (subareaId == null || subareaId.trim().isEmpty) return '—';
-    final s = await FirebaseDatabase.instance
-        .ref('SubAreas/$subareaId/SubArea_Name')
-        .get();
-    return (s.value ?? '—').toString().trim();
-  }
-
-  Future<String> _areaNameViaSubarea(String? subareaId) async {
-    if (subareaId == null || subareaId.trim().isEmpty) return '—';
-    final areaIdSnap = await FirebaseDatabase.instance
-        .ref('SubAreas/$subareaId/areaID')
-        .get();
-    final areaId = (areaIdSnap.value ?? '').toString().trim();
-    if (areaId.isEmpty) return '—';
-    final areaNameSnap = await FirebaseDatabase.instance
-        .ref('Areas/$areaId/Area_Name')
-        .get();
-    return (areaNameSnap.value ?? '—').toString().trim();
-  }
-
-  String _pickCustomerName(String? docName, String? pharmacyName) {
-    final dn = (docName ?? '').trim();
-    if (dn.isNotEmpty) return dn;
-    final pn = (pharmacyName ?? '').trim();
-    return pn;
+    return '';
   }
 
   String _fmtYmd(dynamic raw) {
@@ -330,12 +251,202 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
     return s;
   }
 
-  bool _isFollowupDueOrOlder(DateTime? d) {
-    if (d == null) return false;
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dd = DateTime(d.year, d.month, d.day);
-    return dd.isBefore(today) || dd.isAtSameMomentAs(today);
+  String _eol() {
+    if (kIsWeb) return '\r\n';
+    try {
+      return Platform.isWindows ? '\r\n' : '\n';
+    } catch (_) {
+      return '\n';
+    }
+  }
+
+  String _csvEscape(String? s) {
+    final v = (s ?? '').replaceAll('"', '""');
+    return '"$v"';
+  }
+
+  Future<String> _saveCsvCrossPlatform({
+    required String fileName,
+    required String csv,
+  }) async {
+    if (kIsWeb) {
+      final blob = html.Blob([csv], 'text/csv;charset=utf-8');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..download = fileName
+        ..style.display = 'none';
+      html.document.body?.append(anchor);
+      anchor.click();
+      anchor.remove();
+      html.Url.revokeObjectUrl(url);
+      return 'downloaded via browser';
+    }
+
+    try {
+      String targetPath;
+      if (Platform.isAndroid) {
+        targetPath = '/storage/emulated/0/Download';
+      } else if (Platform.isWindows) {
+        final home = Platform.environment['USERPROFILE'] ?? '';
+        targetPath = home.isNotEmpty
+            ? '$home\\Downloads'
+            : Directory.systemTemp.path;
+      } else if (Platform.isMacOS || Platform.isLinux) {
+        final home = Platform.environment['HOME'] ?? '';
+        targetPath = home.isNotEmpty
+            ? '$home/Downloads'
+            : Directory.systemTemp.path;
+      } else if (Platform.isIOS) {
+        targetPath = Directory.systemTemp.path; // sandbox
+      } else {
+        targetPath = Directory.systemTemp.path;
+      }
+
+      final dir = Directory(targetPath);
+      if (!await dir.exists()) await dir.create(recursive: true);
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsString(csv, flush: true);
+      return file.path;
+    } catch (_) {
+      final tmp = File('${Directory.systemTemp.path}/$fileName');
+      await tmp.writeAsString(csv, flush: true);
+      return tmp.path;
+    }
+  }
+
+  Future<List<Map<String, String>>> _buildFilteredClientRows() async {
+    // existing lookups (sales person etc.)...
+    await _ensureLatestLogsLoaded();
+
+    final list = _filteredClients();
+    final neededCodes = <String>{for (final c in list) _norm(c.customerCode)}
+      ..removeWhere((e) => e.isEmpty);
+    await _ensureClientDetailsLoaded(neededCodes);
+    return list.map((c) {
+      final code = (c.customerCode ?? '').trim();
+      final codeKey = _normCode(code);
+      final Map<String, dynamic>? m = _clientByCode[code];
+
+      String customerName = '';
+      String address1 = '';
+      String address2 = '';
+      String landmark = '';
+      String mobile1 = '';
+      String mobile2 = '';
+      String OrderType = 'NA';
+      String OrderDetails = 'NA';
+      String OrderAmount = 'NA';
+
+      if (m != null) {
+        final docName = _pickAny(m, ['Doc_Name', 'DoctorName', 'Doctor_Name']);
+        final pharmacyName = _pickAny(m, ['Pharmacy_Person_Name']);
+        final isDoc = docName.isNotEmpty;
+        customerName = isDoc ? docName : pharmacyName;
+
+        address1 = isDoc
+            ? _pickAny(m, ['Institution_OR_Clinic_Address_1'])
+            : _pickAny(m, ['Pharmacy_Address_1']);
+        address2 = isDoc
+            ? _pickAny(m, ['Institution_OR_Clinic_Address_2'])
+            : _pickAny(m, ['Pharmacy_Address_2']);
+        landmark = isDoc
+            ? _pickAny(m, [
+                'Institution_OR_Clinic_Landmark',
+                'nstitution_OR_Clinic_Landmark',
+              ]) // include typo variant
+            : _pickAny(m, ['Pharmacy_Landmark']);
+
+        // As per your mapping (even if unusual): pharmacy “mobiles” come from Pharmacy_Address_1/2
+        mobile1 = isDoc
+            ? _pickAny(m, ['Doc_Mobile_No_1'])
+            : _pickAny(m, ['Pharmacy_Mobile_No_1']);
+        mobile2 = isDoc
+            ? _pickAny(m, ['Doc_Mobile_No_2'])
+            : _pickAny(m, ['Pharmacy_Mobile_No_2']);
+      }
+
+      // Existing columns you already return:
+      final row = <String, String>{
+        'Category': c.category ?? '',
+        'Type of Institution': c.typeOfInstitution ?? '',
+        'Customer Code': code,
+        'Followup Date': (() {
+          final dt = _parseAnyDate(c.followupDate);
+          return dt == null ? (c.followupDate?.toString() ?? '') : _fmtYmd(dt);
+        })(),
+      };
+
+      // NEW: fill from latest ActivityLog for this customer
+      final log = _latestLogByCode[codeKey];
+      if (log != null) {
+        final whenMs = (log['__whenMs'] as int?) ?? 0;
+        final visitDate = whenMs > 0
+            ? _fmtYmd(DateTime.fromMillisecondsSinceEpoch(whenMs))
+            : (() {
+                final ca = _parseAnyDate(log['createdAt']);
+                return ca == null ? '' : _fmtYmd(ca);
+              })();
+
+        row['Visit Date'] = visitDate;
+        row['Type Of Call'] = (log['type'] ?? '').toString();
+        row['Visit Brief'] = (log['message'] ?? '').toString();
+        row['Call Response'] = (log['response'] ?? '').toString();
+      } else {
+        row['Visit Date'] = '';
+        row['Type Of Call'] = '';
+        row['Visit Brief'] = '';
+        row['Call Response'] = '';
+      }
+      row['Destination'] = _subareaName(c.subareaId);
+      row['City'] = _areaName(c.areaId);
+      row['Sales Person'] = _salesPersonName(c.subareaId);
+
+      row['Customer Name'] = customerName;
+      row['Address1'] = address1;
+      row['Address2'] = address2;
+      row['Landmark'] = landmark;
+      row['Mobile No 1'] = mobile1;
+      row['Mobile No 2'] = mobile2;
+      row['Order Type'] = OrderType;
+      row['Order Details'] = OrderDetails;
+      row['Order Amount'] = OrderAmount;
+
+      return row;
+    }).toList();
+  }
+
+  Future<void> _openFilteredClientsTable() async {
+    final rows = await _buildFilteredClientRows();
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FilteredClientsTablePage(
+          rows: rows,
+          headers: const [
+            'Visit Date',
+            'Sales Person',
+            'Type Of Call',
+            'Category',
+            'Type of Institution',
+            'Destination',
+            'City',
+            'Customer Code',
+            'Customer Name',
+            'Address1',
+            'Address2',
+            'Landmark',
+            'Mobile No 1',
+            'Mobile No 2',
+            'Order Type',
+            'Order Details',
+            'Order Amount',
+            'Visit Brief',
+            'Call Response',
+            'Followup Date',
+          ],
+        ),
+      ),
+    );
   }
 
   // Filtering and sorting as in your code
@@ -353,132 +464,294 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
         pool = pool.where((c) => subs.contains(_s(c.subareaId)));
       }
     }
+    // Apply current dropdown selections (if any)
+    if (_regionId.isNotEmpty) {
+      pool = pool.where((c) => _s(c.regionId) == _regionId);
+    }
+    if (_areaId.isNotEmpty) {
+      pool = pool.where((c) => _s(c.areaId) == _areaId);
+    }
+    if (_subareaId.isNotEmpty) {
+      pool = pool.where((c) => _s(c.subareaId) == _subareaId);
+    }
     final rows = pool.toList();
-    rows.sort((a, b) => _fmtYmd(a.followupDate).compareTo(_fmtYmd(b.followupDate)));
+    rows.sort(
+      (a, b) => _fmtYmd(a.followupDate).compareTo(_fmtYmd(b.followupDate)),
+    );
     return rows;
   }
 
-  // CSV Builders and Savers
-  String _csvEscape(String? s) {
-    final v = (s ?? '').replaceAll('"', '""');
-    return '"$v"';
-  }
-  String _eol() {
-    if (kIsWeb) return '\r\n';
-    try { return Platform.isWindows ? '\r\n' : '\n'; } catch (_) { return '\n'; }
-  }
-  Future<String> _saveCsvCrossPlatform({required String fileName, required String csv}) async {
-    if (kIsWeb) {
-      final blob = html.Blob([csv], 'text/csv;charset=utf-8');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..download = fileName
-        ..style.display = 'none';
-      html.document.body?.append(anchor);
-      anchor.click();
-      anchor.remove();
-      html.Url.revokeObjectUrl(url);
-      return 'via browser download';
+  DateTime? _parseAnyDate(dynamic v) {
+    if (v == null) return null;
+    if (v is int) {
+      if (v > 2000000000) return DateTime.fromMillisecondsSinceEpoch(v);
+      return DateTime.fromMillisecondsSinceEpoch(v * 1000);
     }
-    try {
-      String targetPath;
-      if (Platform.isAndroid) {
-        targetPath = '/storage/emulated/0/Download';
-      } else if (Platform.isWindows) {
-        final home = Platform.environment['USERPROFILE'] ?? '';
-        targetPath = home.isNotEmpty ? '$home\\Downloads' : Directory.systemTemp.path;
-      } else if (Platform.isMacOS || Platform.isLinux) {
-        final home = Platform.environment['HOME'] ?? '';
-        targetPath = home.isNotEmpty ? '$home/Downloads' : Directory.systemTemp.path;
-      } else if (Platform.isIOS) {
-        targetPath = Directory.systemTemp.path;
+    if (v is String) {
+      final n = int.tryParse(v);
+      if (n != null) {
+        if (n > 2000000000) return DateTime.fromMillisecondsSinceEpoch(n);
+        return DateTime.fromMillisecondsSinceEpoch(n * 1000);
+      }
+      try {
+        return DateTime.parse(v);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<void> _ensureClientDetailsLoaded(Set<String> neededCodes) async {
+    // if already cached all needed codes, skip
+    final missing = neededCodes
+        .where((c) => !_clientByCode.containsKey(c))
+        .toList();
+    if (missing.isEmpty) return;
+
+    final snap = await FirebaseDatabase.instance.ref('Clients').get();
+    if (!snap.exists) return;
+
+    for (final child in snap.children) {
+      final raw = child.value;
+      if (raw is! Map) continue;
+      final m = Map<String, dynamic>.from(raw as Map);
+      final code = _norm(m['customerCode']?.toString());
+      if (code.isEmpty) continue;
+      _clientByCode[code] =
+          m; // cache full map; we'll pick only needed fields later
+    }
+  }
+
+  Future<void> _ensureLatestLogsLoaded() async {
+    if (_latestLogByCode.isNotEmpty) return;
+
+    final snap = await FirebaseDatabase.instance.ref('ActivityLogs').get();
+    if (!snap.exists) return;
+
+    for (final node in snap.children) {
+      final raw = node.value;
+      if (raw is! Map) continue;
+      final m = Map<String, dynamic>.from(raw as Map);
+
+      final codeKey = _normCode(
+        (m['customerCode'] ?? m['CustomerCode'])?.toString(),
+      );
+      if (codeKey.isEmpty) continue;
+
+      // Pick a timestamp: prefer dateTimeMillis, else parse createdAt
+      int whenMs = 0;
+      final msStr = (m['dateTimeMillis'] ?? m['dateMillis'])?.toString();
+      final msParsed = int.tryParse(msStr ?? '');
+      if (msParsed != null && msParsed > 0) {
+        whenMs = (msParsed < 20000000000) ? msParsed * 1000 : msParsed;
       } else {
-        targetPath = Directory.systemTemp.path;
+        final ca = _parseAnyDate(m['createdAt']);
+        if (ca != null) whenMs = ca.millisecondsSinceEpoch;
+      }
+      if (whenMs <= 0) continue;
+
+      final prev = _latestLogByCode[codeKey];
+      final prevWhen = prev == null ? 0 : (prev['__whenMs'] as int? ?? 0);
+      if (whenMs > prevWhen) {
+        _latestLogByCode[codeKey] = {
+          '__whenMs': whenMs, // internal helper
+          'createdAt': m['createdAt'],
+          'type': m['type'],
+          'message': m['message'],
+          'response': m['response'],
+        };
+      }
+    }
+  }
+
+  Future<void> _exportFilteredClientCsv(BuildContext context) async {
+    try {
+      final List<Map<String, String>> rows = await _buildFilteredClientRows();
+      if (rows.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Nothing to export')));
+        return;
       }
 
-      final dir = Directory(targetPath);
-      if (!await dir.exists()) await dir.create(recursive: true);
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsString(csv, flush: true);
-      return file.path;
-    } catch (_) {
-      final tmp = File('${Directory.systemTemp.path}/$fileName');
-      await tmp.writeAsString(csv, flush: true);
-      return tmp.path;
-    }
-  }
+      // Use your usual headers (take order from your table/component)
+      final List<String> headers = [
+        'Visit Date',
+        'Sales Person',
+        'Type Of Call',
+        'Category',
+        'Type of Institution',
+        'Destination',
+        'City',
+        'Customer Code',
+        'Customer Name',
+        'Address1',
+        'Address2',
+        'Landmark',
+        'Mobile No 1',
+        'Mobile No 2',
+        'Order Type',
+        'Order Details',
+        'Order Amount',
+        'Visit Brief',
+        'Call Response',
+        'Followup Date',
+      ];
 
-  Future<void> _exportCsv(BuildContext context) async {
-    try {
-      final table = await buildBeatPlanCsvLinesDueOrToday(_filteredClients());
-      final sep = _eol();
-      final csv = table.map((row) => row.map(_csvEscape).join(',')).join(sep);
+      // Compose CSV string
+      final StringBuffer sb = StringBuffer();
+      sb.writeln(headers.map((h) => _csvEscape(h)).join(','));
+      for (final row in rows) {
+        sb.writeln(headers.map((h) => _csvEscape(row[h])).join(','));
+      }
+
       final now = DateTime.now();
-      final fileName = 'Clients_${now.year}${now.month.toString().padLeft(2, "0")}${now.day.toString().padLeft(2, "0")}.csv';
-      final where = await _saveCsvCrossPlatform(fileName: fileName, csv: csv);
+      final fileName =
+          'BeatPlan_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv';
+      final csvData = sb.toString();
 
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('CSV exported $where')),
+      // Save and export using robust logic
+      final where = await _saveCsvCrossPlatform(
+        fileName: fileName,
+        csv: csvData,
       );
-    } catch (e, st) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e')),
-      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Exported CSV: $where')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
     }
   }
 
-  Future<List<List<String>>> buildBeatPlanCsvLinesDueOrToday(List<CustomerEntry> allClients) async {
-    final due = allClients.where((c) => _isFollowupDueOrOlder(c.followupDate)).toList(growable: false);
-    final rows = <List<String>>[
-      [
-        'Visit Date','Sales Person','Type Of Call','Category','Type of Institution','Destination','City',
-        'Customer Code','Customer Name','Address1','Address2','Landmark',
-        'Mobile No 1','Mobile No 2','Order Type','Order Details','Order Amount',
-        'Visit Brief','Call Response','Followup Date',
-      ],
-    ];
+  Future<void> _exportClientsRawSelectedColumnsCsv() async {
+    try {
+      final snap = await FirebaseDatabase.instance.ref('Clients').get();
+      if (!snap.exists || snap.children.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No Clients to export')));
+        return;
+      }
 
-    for (final c in due) {
-      Map<String, dynamic>? lastLog;
-      try { lastLog = await _fetchLastActivityLog(c.customerCode); } catch (_) {}
+      const headers = [
+        'Customer_ID',
+        'Date_of_1st_Call',
+        'Opening_Month',
+        'Date_of_Opening',
+        'Sales_Person',
+        'Category',
+        'City',
+        'Destination',
+        'Type_of_Institution',
+        'Institution_OR_Clinic_Name',
+        'Institution_OR_Clinic_Address_1',
+        'Institution_OR_Clinic_Address_2',
+        'Institution_OR_Clinic_Landmark',
+        'Institution_OR_Clinic_Pin_Code',
+        'Doc_Name',
+        'Doc_Mobile_No_1',
+        'Doc_Mobile_No_2',
+        'Pharmacy_Name',
+        'Pharmacy_Address_1',
+        'Pharmacy_Address_2',
+        'Pharmacy_Landmark',
+        'Pharmacy_Pin_Code',
+        'Pharmacy_Person_Name',
+        'Pharmacy_Mobile_No_1',
+        'Pharmacy_Mobile_No_2',
+        'GST_Number',
+        'Status',
+        'Visit_Days',
+        'BUSINESS_SLAB',
+        'BUSINESS_CAT',
+        'VISIT_FREQUENCY_In_Days',
+        'customerCode',
+      ];
 
-      final visitDateStr = lastLog != null && lastLog['dateTimeMillis'] != null
-          ? _fmtYmd(lastLog['dateTimeMillis']) : '';
-      final salesPerson = await _salesPersonNameForSubarea(c.subareaId);
-      final typeOfCall = lastLog?['type'] ?? '';
-      final category = c.category ?? '';
-      final typeOfInstitution = c.typeOfInstitution ?? '';
-      final destination = await _subareaNameById(c.subareaId);
-      final city = await _areaNameViaSubarea(c.subareaId);
-      final code = c.customerCode ?? '';
-      final customerName = _pickCustomerName(c.docName, c.pharmacyName);
+      String _csvCell(String? s) {
+        final v = (s ?? '').replaceAll('"', '""');
+        return '"$v"';
+      }
 
-      final isDoc = (c.docName ?? '').isNotEmpty;
-      final address1 = isDoc ? (c.instituteOrClinicAddress1 ?? '') : (c.pharmacyAddress1 ?? '');
-      final address2 = isDoc ? (c.instituteOrClinicAddress2 ?? '') : (c.pharmacyAddress2 ?? '');
-      final landmark = isDoc ? (c.instituteOrClinicLandmark ?? '') : (c.pharmacyLandmark ?? '');
-      final mobile1 = isDoc ? (c.docMobileNo1 ?? '') : (c.pharmacyMobileNo1 ?? '');
-      final mobile2 = isDoc ? (c.docMobileNo2 ?? '') : (c.pharmacyMobileNo2 ?? '');
-      final orderType = 'NA'; // Per your requirements
-      final orderDetails = 'NA';
-      final orderAmount = 'NA';
-      final visitBrief = lastLog?['message'] ?? '';
-      final callResponse = lastLog?['Response'] ?? lastLog?['response'] ?? '';
-      final followupStr = _fmtYmd(c.followupDate);
+      String _fmtDate(dynamic v) {
+        if (v == null) return '';
+        final s = v.toString().trim();
+        if (s.isEmpty) return '';
+        final n = int.tryParse(s);
+        if (n != null) {
+          final ms = (n < 20000000000) ? n * 1000 : n; // seconds → ms
+          final d = DateTime.fromMillisecondsSinceEpoch(ms);
+          return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        }
+        final d = DateTime.tryParse(s);
+        if (d != null) {
+          return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        }
+        return s;
+      }
 
-      rows.add([
-        visitDateStr,salesPerson,typeOfCall,category,typeOfInstitution,destination,city,
-        code,customerName,address1,address2,landmark,mobile1,mobile2,
-        orderType,orderDetails,orderAmount,
-        visitBrief,callResponse,followupStr
-      ]);
+      final sb = StringBuffer();
+      sb.writeln(headers.join(','));
+
+      for (final child in snap.children) {
+        final v = child.value;
+        if (v is! Map) continue;
+        final m = Map<String, dynamic>.from(v as Map);
+
+        final row = headers
+            .map((h) {
+              final val = m[h];
+              // format only for date-like fields
+              if (h == 'Date_of_1st_Call' ||
+                  h == 'Opening_Month' ||
+                  h == 'Date_of_Opening') {
+                return _csvCell(_fmtDate(val));
+              }
+              return _csvCell(val?.toString());
+            })
+            .join(',');
+        sb.writeln(row);
+      }
+
+      final csv = '\uFEFF${sb.toString()}'; // BOM for Excel
+      final now = DateTime.now();
+      final filename =
+          'Clients_Selected_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv';
+
+      if (kIsWeb) {
+        final dataUrl =
+            'data:text/csv;charset=utf-8,${Uri.encodeComponent(csv)}';
+        final a = html.AnchorElement(href: dataUrl)
+          ..download = filename
+          ..style.display = 'none';
+        html.document.body?.append(a);
+        a.click();
+        a.remove();
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Exported $filename')));
+      } else {
+        // TODO: add native saving if you need mobile/desktop
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('CSV ready (non-web): $filename')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
     }
-    return rows;
   }
 
-  // UI
   Widget build(BuildContext context) {
     final clients = _filteredClients();
     return Scaffold(
@@ -496,53 +769,119 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                 label: 'Region',
                 value: _regionId,
                 items: _lr
-                    ? const [DropdownMenuItem(value: '', child: Text('Loading...'))]
+                    ? const [
+                        DropdownMenuItem(value: '', child: Text('Loading...')),
+                      ]
                     : (_er != null
-                          ? const [DropdownMenuItem(value: '', child: Text('Error'))]
+                          ? const [
+                              DropdownMenuItem(value: '', child: Text('Error')),
+                            ]
                           : _regionItems()),
                 onChanged: (id) => setState(() {
-                  _regionId = id ?? ''; _areaId = ''; _subareaId = '';
+                  _regionId = id ?? '';
+                  _areaId = '';
+                  _subareaId = '';
                 }),
               ),
               _rowDropdown(
                 label: 'Area',
                 value: _areaId,
                 items: _la
-                    ? const [DropdownMenuItem(value: '', child: Text('Loading...'))]
+                    ? const [
+                        DropdownMenuItem(value: '', child: Text('Loading...')),
+                      ]
                     : (_ea != null
-                          ? const [DropdownMenuItem(value: '', child: Text('Error'))]
+                          ? const [
+                              DropdownMenuItem(value: '', child: Text('Error')),
+                            ]
                           : _areaItems()),
                 onChanged: (id) => setState(() {
-                  _areaId = id ?? ''; _subareaId = '';
+                  _areaId = id ?? '';
+                  _subareaId = '';
                 }),
               ),
               _rowDropdown(
                 label: 'Sub-Area',
                 value: _subareaId,
                 items: _ls
-                    ? const [DropdownMenuItem(value: '', child: Text('Loading...'))]
+                    ? const [
+                        DropdownMenuItem(value: '', child: Text('Loading...')),
+                      ]
                     : (_es != null
-                          ? const [DropdownMenuItem(value: '', child: Text('Error'))]
+                          ? const [
+                              DropdownMenuItem(value: '', child: Text('Error')),
+                            ]
                           : _subAreaItems()),
-                onChanged: (id) => setState(() { _subareaId = id ?? ''; }),
+                onChanged: (id) => setState(() {
+                  _subareaId = id ?? '';
+                }),
               ),
               const Divider(),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(children: [
-                  Icon(Icons.people_alt_outlined, size: 18, color: Colors.grey),
-                  SizedBox(width: 8),
-                  Text('Beat Plan (${clients.length})', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ElevatedButton(
-                    onPressed: () => _exportCsv(context),
-                    child: const Text('Export CSV'),
-                  ),
-                ]),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.people_alt_outlined,
+                      size: 18,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Beat Plan (${clients.length})',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+
+                    /*ElevatedButton.icon(
+                      onPressed: _openFilteredClientsTable,
+                      icon: const Icon(Icons.table_chart),
+                      label: const Text('Show Filtered Clients'),
+                    ),*/
+                    ElevatedButton(
+                      onPressed: () async {
+                        await _exportFilteredClientCsv(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text(
+                        'Export',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    if (widget.roleId == "4") ...[
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: _exportClientsRawSelectedColumnsCsv,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        icon: const Icon(Icons.file_download),
+                        label: const Text(
+                          'Export Clients Master',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               if (_ec != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text('Failed to load clients: $_ec', style: const TextStyle(color: Colors.red)),
+                  child: Text(
+                    'Failed to load clients: $_ec',
+                    style: const TextStyle(color: Colors.red),
+                  ),
                 )
               else if (_lc)
                 const Padding(
@@ -584,42 +923,203 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
     );
   }
 
-  // Dropdown helpers as your original code:
   List<DropdownMenuItem<String>> _regionItems() {
-    final allowed = widget.allowedRegionIds.toSet();
-    final rows =
-        _regions.where((r) => allowed.contains(_s(r.regionId))).toList();
-    rows.sort((a, b) => a.regionName.toLowerCase().compareTo(b.regionName.toLowerCase()));
-    return [
-      const DropdownMenuItem(value: '', child: Text('All')),
-      ...rows.map((r) => DropdownMenuItem(value: _s(r.regionId), child: Text(r.regionName))),
-    ];
+  final String role = widget.roleId?.toString() ?? '';
+  final bool unrestricted = (role == '4' || role == '5' || role == '6' || role == '7' || (widget.allAccess ?? false));
+
+  final Set<String> allowedRegions = (widget.allowedRegionIds ?? const <String>[])
+      .map((e) => _s(e))
+      .toSet();
+  final Set<String> allowedAreas = (widget.allowedAreaIds ?? const <String>[])
+      .map((e) => _s(e))
+      .toSet();
+  final Set<String> allowedSubs = (widget.allowedSubareaIds ?? const <String>[])
+      .map((e) => _s(e))
+      .toSet();
+
+  Iterable<RegionEntry> pool = _regions;
+
+  if (unrestricted) {
+    pool = _regions;
+  } else if (role == '2') {
+    // Area Manager
+    if (allowedRegions.isNotEmpty) {
+      pool = _regions.where((r) => allowedRegions.contains(_s(r.regionId)));
+    } else if (allowedAreas.isNotEmpty) {
+      final regIds = _areas
+          .where((a) => allowedAreas.contains(_s(a.areaId)))
+          .map((a) => _s(a.regionId))
+          .toSet();
+      pool = _regions.where((r) => regIds.contains(_s(r.regionId)));
+    }
+  } else if (role == '1') {
+    // Sales Exec
+    if (allowedSubs.isNotEmpty) {
+      final areaIds = _subAreas
+          .where((s) => allowedSubs.contains(_s(s.subareaId)))
+          .map((s) => _s(s.areaId))
+          .toSet();
+      final regIds = _areas
+          .where((a) => areaIds.contains(_s(a.areaId)))
+          .map((a) => _s(a.regionId))
+          .toSet();
+      pool = _regions.where((r) => regIds.contains(_s(r.regionId)));
+    } else {
+      pool = const <RegionEntry>[];
+    }
+  } else {
+    if (allowedRegions.isNotEmpty) {
+      pool = _regions.where((r) => allowedRegions.contains(_s(r.regionId)));
+    }
   }
+
+  // Remove any with empty id or name and de-duplicate by id
+  final seen = <String>{};
+  final rows = pool.where((r) {
+    final id = _s(r.regionId);
+    final name = (_s(r.regionName));
+    if (id.isEmpty || name.isEmpty) return false;
+    if (seen.contains(id)) return false;
+    seen.add(id);
+    return true;
+  }).toList()
+    ..sort((a, b) => a.regionName.toLowerCase().compareTo(b.regionName.toLowerCase()));
+
+  final items = <DropdownMenuItem<String>>[];
+
+  // Show "All" only for unrestricted roles and only if there is more than 1 option
+  if (unrestricted && rows.length > 1) {
+    items.add(const DropdownMenuItem(value: '', child: Text('All')));
+  }
+
+  items.addAll(rows.map((r) => DropdownMenuItem(
+        value: _s(r.regionId),
+        child: Text(r.regionName),
+      )));
+
+  return items;
+}
+
+
   List<DropdownMenuItem<String>> _areaItems() {
-    final allowed = widget.allowedAreaIds.toSet();
-    Iterable<AreaEntry> pool = _areas.where((a) => allowed.contains(_s(a.areaId)));
-    if (_regionId.isNotEmpty)
-      pool = pool.where((a) => _s(a.regionId) == _regionId);
-    final rows = pool.toList();
-    rows.sort((a, b) => a.areaName.toLowerCase().compareTo(b.areaName.toLowerCase()));
+    // Role-aware area options; respect selected region if any
+    final String role = widget.roleId?.toString() ?? '';
+    final Set<String> allowedAreas = (widget.allowedAreaIds ?? const <String>[])
+        .map((e) => _s(e))
+        .toSet();
+    final Set<String> allowedSubs =
+        (widget.allowedSubareaIds ?? const <String>[])
+            .map((e) => _s(e))
+            .toSet();
+
+    Iterable<AreaEntry> pool = _areas;
+
+    if (role == '4' ||
+        role == '5' ||
+        role == '6' ||
+        role == '7' ||
+        (widget.allAccess ?? false)) {
+      // unrestricted: all areas, optionally filter by selected region
+      if (_regionId.isNotEmpty) {
+        pool = pool.where((a) => _s(a.regionId) == _regionId);
+      }
+    } else if (role == '2') {
+      // Area Manager: only allowed areas
+      if (allowedAreas.isNotEmpty) {
+        pool = pool.where((a) => allowedAreas.contains(_s(a.areaId)));
+      }
+      if (_regionId.isNotEmpty) {
+        pool = pool.where((a) => _s(a.regionId) == _regionId);
+      }
+    } else if (role == '1') {
+      // Sales Exec: areas derived from their allowed subareas
+      if (allowedSubs.isNotEmpty) {
+        final areaIds = _subAreas
+            .where((s) => allowedSubs.contains(_s(s.subareaId)))
+            .map((s) => _s(s.areaId))
+            .toSet();
+        pool = pool.where((a) => areaIds.contains(_s(a.areaId)));
+      }
+      if (_regionId.isNotEmpty) {
+        pool = pool.where((a) => _s(a.regionId) == _regionId);
+      }
+    }
+
+    final rows = pool.toList()
+      ..sort(
+        (a, b) => a.areaName.toLowerCase().compareTo(b.areaName.toLowerCase()),
+      );
+
     return [
       const DropdownMenuItem(value: '', child: Text('All')),
-      ...rows.map((a) => DropdownMenuItem(value: _s(a.areaId), child: Text(a.areaName))),
+      ...rows.map(
+        (a) => DropdownMenuItem(value: _s(a.areaId), child: Text(a.areaName)),
+      ),
     ];
   }
+
   List<DropdownMenuItem<String>> _subAreaItems() {
-    final allowed = widget.allowedSubareaIds.toSet();
-    Iterable<SubAreaEntry> pool = _subAreas.where((s) => allowed.contains(_s(s.subareaId)));
-    if (_regionId.isNotEmpty)
-      pool = pool.where((s) => _s(s.regionId) == _regionId);
-    if (_areaId.isNotEmpty) pool = pool.where((s) => _s(s.areaId) == _areaId);
-    final rows = pool.toList();
-    rows.sort((a, b) => a.subareaName.toLowerCase().compareTo(b.subareaName.toLowerCase()));
+    // Role-aware sub-area options; respect selected area if any
+    final String role = widget.roleId?.toString() ?? '';
+    final Set<String> allowedSubs =
+        (widget.allowedSubareaIds ?? const <String>[])
+            .map((e) => _s(e))
+            .toSet();
+    final Set<String> allowedAreas = (widget.allowedAreaIds ?? const <String>[])
+        .map((e) => _s(e))
+        .toSet();
+
+    Iterable<SubAreaEntry> pool = _subAreas;
+
+    if (role == '4' ||
+        role == '5' ||
+        role == '6' ||
+        role == '7' ||
+        (widget.allAccess ?? false)) {
+      // Unrestricted: all subareas; optionally narrow by selected area
+      if (_areaId.isNotEmpty) {
+        pool = pool.where((s) => _s(s.areaId) == _areaId);
+      }
+    } else if (role == '2') {
+      // Area Manager:
+      // Prefer explicit allowed subareas; otherwise derive from allowed areas.
+      if (allowedSubs.isNotEmpty) {
+        pool = pool.where((s) => allowedSubs.contains(_s(s.subareaId)));
+      } else if (allowedAreas.isNotEmpty) {
+        pool = pool.where((s) => allowedAreas.contains(_s(s.areaId)));
+      }
+      if (_areaId.isNotEmpty) {
+        pool = pool.where((s) => _s(s.areaId) == _areaId);
+      }
+    } else if (role == '1') {
+      // Sales Exec: only explicitly allowed subareas
+      if (allowedSubs.isNotEmpty) {
+        pool = pool.where((s) => allowedSubs.contains(_s(s.subareaId)));
+      } else {
+        pool = const <SubAreaEntry>[];
+      }
+      if (_areaId.isNotEmpty) {
+        pool = pool.where((s) => _s(s.areaId) == _areaId);
+      }
+    }
+
+    final rows = pool.toList()
+      ..sort(
+        (a, b) =>
+            a.subareaName.toLowerCase().compareTo(b.subareaName.toLowerCase()),
+      );
+
     return [
       const DropdownMenuItem(value: '', child: Text('All')),
-      ...rows.map((s) => DropdownMenuItem(value: _s(s.subareaId), child: Text(s.subareaName))),
+      ...rows.map(
+        (s) => DropdownMenuItem(
+          value: _s(s.subareaId),
+          child: Text(s.subareaName),
+        ),
+      ),
     ];
   }
+
   Widget _rowDropdown({
     required String label,
     required String value,
@@ -641,7 +1141,10 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
               onChanged: onChanged,
               decoration: InputDecoration(
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 hintText: 'Select $label',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -654,7 +1157,6 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
     );
   }
 
-  // Client display card logic (as per your original code)
   Widget _clientPlate(CustomerEntry c) {
     final title = (c.instituteOrClinicName?.isNotEmpty == true)
         ? c.instituteOrClinicName!
@@ -672,9 +1174,9 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
 
     return InkWell(
       onTap: () {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => ClientDetailsPage(client: c),
-        ));
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => ClientDetailsPage(client: c)));
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -693,21 +1195,37 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                )),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 8),
-                Text(code, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                Text(
+                  code,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 6),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: Text('$region | $area | $sub', style: const TextStyle(fontSize: 14))),
+                Expanded(
+                  child: Text(
+                    '$region | $area | $sub',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
                 const SizedBox(width: 8),
                 Text(category, style: const TextStyle(fontSize: 14)),
               ],
@@ -716,7 +1234,12 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: Text('Business Slab: $slab', style: const TextStyle(fontSize: 14))),
+                Expanded(
+                  child: Text(
+                    'Business Slab: $slab',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
                 const SizedBox(width: 8),
                 Text(status, style: const TextStyle(fontSize: 14)),
               ],
@@ -725,14 +1248,25 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: Text('Business Cat: $bcat', style: const TextStyle(fontSize: 14))),
+                Expanded(
+                  child: Text(
+                    'Business Cat: $bcat',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
                 const SizedBox(width: 8),
                 const Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('Previous Order Value:', style: TextStyle(fontSize: 14)),
+                    Text(
+                      'Previous Order Value:',
+                      style: TextStyle(fontSize: 14),
+                    ),
                     SizedBox(height: 2),
-                    Text('Previous Order Date:', style: TextStyle(fontSize: 14)),
+                    Text(
+                      'Previous Order Date:',
+                      style: TextStyle(fontSize: 14),
+                    ),
                   ],
                 ),
               ],
@@ -741,13 +1275,80 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Followup date: $follow',
-                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+                Text(
+                  'Followup date: $follow',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.deepOrange,
+                  ),
+                ),
                 Text(spName, style: const TextStyle(fontSize: 14)),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class FilteredClientsTablePage extends StatelessWidget {
+  final List<Map<String, String>> rows;
+  final List<String> headers; // allow caller to specify columns
+  const FilteredClientsTablePage({
+    Key? key,
+    required this.rows,
+    required this.headers,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final hCtrl = ScrollController();
+    final vCtrl = ScrollController();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Filtered Clients')),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: rows.isEmpty
+            ? const Center(child: Text('No clients match the filter.'))
+            : Scrollbar(
+                controller: hCtrl,
+                thumbVisibility: true,
+                notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
+                child: SingleChildScrollView(
+                  controller: hCtrl,
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: headers.length * 220.0,
+                    ),
+                    child: Scrollbar(
+                      controller: vCtrl,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: vCtrl,
+                        scrollDirection: Axis.vertical,
+                        child: DataTable(
+                          columns: headers
+                              .map((h) => DataColumn(label: Text(h)))
+                              .toList(),
+                          rows: rows
+                              .map(
+                                (r) => DataRow(
+                                  cells: headers
+                                      .map((h) => DataCell(Text(r[h] ?? '')))
+                                      .toList(),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
       ),
     );
   }

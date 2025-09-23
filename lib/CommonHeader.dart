@@ -173,7 +173,7 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
                   style: menuButtonStyle,
                   child: const Text("Attendance"),
                 ),
-                const SizedBox(width: 8),*/
+                const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => InsertData()));
@@ -181,7 +181,7 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
                   style: menuButtonStyle,
                   child: const Text("Admin"),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 8),*/
               ],
             ),
           ),

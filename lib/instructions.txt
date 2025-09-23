@@ -1,4 +1,6 @@
 |||| RUNNING WITHOUT DEBUG ||||
+flutter clean
+flutter pub get
 flutter run --release -d chrome
 
 || REDEPLOYMENT TO FIREBASE || (DONT DO THIS)

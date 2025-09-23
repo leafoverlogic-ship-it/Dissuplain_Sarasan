@@ -14,4 +14,5 @@ databaseRef.child('8').set({'SalesPersonID': 'SS-1133', 'salesPersonRoleID': '1'
 databaseRef.child('9').set({'SalesPersonID': 'SS-1135', 'salesPersonRoleID': '1', 'SalesPersonName': 'Awadesh Kumar', 'ReportingPersonID': 'SS-1124', 'phoneNumber': '1234567890', 'emailAddress': 'abc@gmail.com', 'loginPwd': 'Welcome@123'});
 databaseRef.child('10').set({'SalesPersonID': 'UU-0001', 'salesPersonRoleID': '1', 'SalesPersonName': 'Unassigned', 'ReportingPersonID': 'SS-1124', 'phoneNumber': '1234567890', 'emailAddress': 'abc@gmail.com', 'loginPwd': 'Welcome@123'});
 databaseRef.child('11').set({'SalesPersonID': 'SS-1131', 'salesPersonRoleID': '1', 'SalesPersonName': 'Adarsh Pandey', 'ReportingPersonID': 'SS-1124', 'phoneNumber': '1234567890', 'emailAddress': 'abc@gmail.com', 'loginPwd': 'Welcome@123'});
+databaseRef.child('12').set({'SalesPersonID': 'SS-1136', 'salesPersonRoleID': '1', 'SalesPersonName': 'Nitish Pandey', 'ReportingPersonID': 'SS-1124', 'phoneNumber': '1234567890', 'emailAddress': 'abc@gmail.com', 'loginPwd': 'Welcome@123'});
 }
