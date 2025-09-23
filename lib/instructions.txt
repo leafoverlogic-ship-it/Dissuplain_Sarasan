@@ -7,6 +7,11 @@ flutter run --release -d chrome
 flutter build web
 firebase deploy --only hosting
 
+|| GIT COMMIT ||
+git add -A
+git commit -m "<date>"
+git push
+
 || Beat Plan Export ||
 Visit Date - date from last activity log
 Sales Person - name of the sales person assigned to this (use same logic - using subareaid of client, find the assignedSE id in Subareas, then find the name of the assigned SE from Users)

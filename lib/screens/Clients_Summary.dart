@@ -390,7 +390,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
         row['Visit Date'] = visitDate;
         row['Type Of Call'] = (log['type'] ?? '').toString();
         row['Visit Brief'] = (log['message'] ?? '').toString();
-        row['Call Response'] = (log['response'] ?? '').toString();
+        row['Call Response'] = (log['Response'] ?? '').toString();
       } else {
         row['Visit Date'] = '';
         row['Type Of Call'] = '';
@@ -557,7 +557,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
           'createdAt': m['createdAt'],
           'type': m['type'],
           'message': m['message'],
-          'response': m['response'],
+          'Response': m['Response'],
         };
       }
     }
