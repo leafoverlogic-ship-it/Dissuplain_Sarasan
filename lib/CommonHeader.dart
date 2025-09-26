@@ -8,6 +8,7 @@ import './screens/Orders.dart';
 import './screens/Attendance.dart';
 import './screens/Admin.dart';
 import 'screens/DataMigrationScreen.dart';
+import 'screens/TerritoryManagerPage.dart';
 import 'screens/UserNamePwd.dart'; // <-- added fallback login
 import 'app_session.dart';
 
@@ -180,8 +181,16 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
                   },
                   style: menuButtonStyle,
                   child: const Text("Admin"),
+                ),*/
+                const SizedBox(width: 8),
+                if ((roleId is int ? roleId : int.tryParse('$roleId')) == 4)
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => TerritoryManagerPage()));
+                  },
+                  style: menuButtonStyle,
+                  child: const Text("Admin"),
                 ),
-                const SizedBox(width: 8),*/
               ],
             ),
           ),

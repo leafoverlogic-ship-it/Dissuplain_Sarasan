@@ -6,6 +6,7 @@ import 'screens/TestExportPage.dart';
 import 'screens/Admin.dart';
 import 'screens/ExportViaClients.dart';
 import 'screens/DataMigrationScreen.dart';
+import 'screens/TerritoryManagerPage.dart';
 
 void main() async{
   
@@ -31,6 +32,7 @@ class MyApp extends StatelessWidget {
         //'/': (context) => ExportViaClients(),
         //'/': (context) => Admin(),
         //'/': (context) => InsertData(),
+        //'/': (context) => TerritoryManagerPage(),
       },
     );
   }
