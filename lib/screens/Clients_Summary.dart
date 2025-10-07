@@ -212,7 +212,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       (u) => _s(u.salesPersonId) == assignedId,
       orElse: () => const UserEntry(
         salesPersonId: '',
-        salesPersonName: '—',
+        salesPersonName: '',
         emailAddress: '',
         phoneNumber: '',
         salesPersonRoleId: '',
@@ -713,6 +713,11 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                   h == 'Date_of_Opening') {
                 return _csvCell(_fmtDate(val));
               }
+              if (h == 'Sales_Person') {
+                final subId = (m['subareaID'] ?? m['subareaId'] ?? '')
+                    .toString();
+                return _csvCell(_salesPersonName(subId)); // <-- name
+              }
               return _csvCell(val?.toString());
             })
             .join(',');
@@ -722,7 +727,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       final csv = '\uFEFF${sb.toString()}'; // BOM for Excel
       final now = DateTime.now();
       final filename =
-          'Clients_Selected_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv';
+          'Clients_Master_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv';
 
       if (kIsWeb) {
         final dataUrl =
@@ -764,6 +769,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                 pageTitle: 'Beat Plan',
                 userName: widget.salesPersonName,
                 onLogout: widget.onLogout,
+                roleId: widget.roleId,
               ),
               _rowDropdown(
                 label: 'Region',
@@ -831,7 +837,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                     ),
                     SizedBox(width: 8),
                     Text(
-                      'Beat Plan (${clients.length})',
+                      'TEST3 Clients List (${clients.length})',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -853,11 +859,11 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: const Text(
-                        'Export',
+                        'Export Beat Plan',
                         style: TextStyle(color: Colors.white),
                       ),
                     ),
-                    if (widget.roleId == "4") ...[
+                    if (widget.roleId == "4" || widget.roleId == '7') ...[
                       const SizedBox(width: 8),
                       ElevatedButton.icon(
                         onPressed: _exportClientsRawSelectedColumnsCsv,
@@ -924,82 +930,91 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
   }
 
   List<DropdownMenuItem<String>> _regionItems() {
-  final String role = widget.roleId?.toString() ?? '';
-  final bool unrestricted = (role == '4' || role == '5' || role == '6' || role == '7' || (widget.allAccess ?? false));
+    final String role = widget.roleId?.toString() ?? '';
+    final bool unrestricted =
+        (role == '4' ||
+        role == '5' ||
+        role == '6' ||
+        role == '7' ||
+        (widget.allAccess ?? false));
 
-  final Set<String> allowedRegions = (widget.allowedRegionIds ?? const <String>[])
-      .map((e) => _s(e))
-      .toSet();
-  final Set<String> allowedAreas = (widget.allowedAreaIds ?? const <String>[])
-      .map((e) => _s(e))
-      .toSet();
-  final Set<String> allowedSubs = (widget.allowedSubareaIds ?? const <String>[])
-      .map((e) => _s(e))
-      .toSet();
+    final Set<String> allowedRegions =
+        (widget.allowedRegionIds ?? const <String>[]).map((e) => _s(e)).toSet();
+    final Set<String> allowedAreas = (widget.allowedAreaIds ?? const <String>[])
+        .map((e) => _s(e))
+        .toSet();
+    final Set<String> allowedSubs =
+        (widget.allowedSubareaIds ?? const <String>[])
+            .map((e) => _s(e))
+            .toSet();
 
-  Iterable<RegionEntry> pool = _regions;
+    Iterable<RegionEntry> pool = _regions;
 
-  if (unrestricted) {
-    pool = _regions;
-  } else if (role == '2') {
-    // Area Manager
-    if (allowedRegions.isNotEmpty) {
-      pool = _regions.where((r) => allowedRegions.contains(_s(r.regionId)));
-    } else if (allowedAreas.isNotEmpty) {
-      final regIds = _areas
-          .where((a) => allowedAreas.contains(_s(a.areaId)))
-          .map((a) => _s(a.regionId))
-          .toSet();
-      pool = _regions.where((r) => regIds.contains(_s(r.regionId)));
-    }
-  } else if (role == '1') {
-    // Sales Exec
-    if (allowedSubs.isNotEmpty) {
-      final areaIds = _subAreas
-          .where((s) => allowedSubs.contains(_s(s.subareaId)))
-          .map((s) => _s(s.areaId))
-          .toSet();
-      final regIds = _areas
-          .where((a) => areaIds.contains(_s(a.areaId)))
-          .map((a) => _s(a.regionId))
-          .toSet();
-      pool = _regions.where((r) => regIds.contains(_s(r.regionId)));
+    if (unrestricted) {
+      pool = _regions;
+    } else if (role == '2') {
+      // Area Manager
+      if (allowedRegions.isNotEmpty) {
+        pool = _regions.where((r) => allowedRegions.contains(_s(r.regionId)));
+      } else if (allowedAreas.isNotEmpty) {
+        final regIds = _areas
+            .where((a) => allowedAreas.contains(_s(a.areaId)))
+            .map((a) => _s(a.regionId))
+            .toSet();
+        pool = _regions.where((r) => regIds.contains(_s(r.regionId)));
+      }
+    } else if (role == '1') {
+      // Sales Exec
+      if (allowedSubs.isNotEmpty) {
+        final areaIds = _subAreas
+            .where((s) => allowedSubs.contains(_s(s.subareaId)))
+            .map((s) => _s(s.areaId))
+            .toSet();
+        final regIds = _areas
+            .where((a) => areaIds.contains(_s(a.areaId)))
+            .map((a) => _s(a.regionId))
+            .toSet();
+        pool = _regions.where((r) => regIds.contains(_s(r.regionId)));
+      } else {
+        pool = const <RegionEntry>[];
+      }
     } else {
-      pool = const <RegionEntry>[];
+      if (allowedRegions.isNotEmpty) {
+        pool = _regions.where((r) => allowedRegions.contains(_s(r.regionId)));
+      }
     }
-  } else {
-    if (allowedRegions.isNotEmpty) {
-      pool = _regions.where((r) => allowedRegions.contains(_s(r.regionId)));
+
+    // Remove any with empty id or name and de-duplicate by id
+    final seen = <String>{};
+    final rows =
+        pool.where((r) {
+          final id = _s(r.regionId);
+          final name = (_s(r.regionName));
+          if (id.isEmpty || name.isEmpty) return false;
+          if (seen.contains(id)) return false;
+          seen.add(id);
+          return true;
+        }).toList()..sort(
+          (a, b) =>
+              a.regionName.toLowerCase().compareTo(b.regionName.toLowerCase()),
+        );
+
+    final items = <DropdownMenuItem<String>>[];
+
+    // Show "All" only for unrestricted roles and only if there is more than 1 option
+    if (unrestricted && rows.length > 1) {
+      items.add(const DropdownMenuItem(value: '', child: Text('All')));
     }
+
+    items.addAll(
+      rows.map(
+        (r) =>
+            DropdownMenuItem(value: _s(r.regionId), child: Text(r.regionName)),
+      ),
+    );
+
+    return items;
   }
-
-  // Remove any with empty id or name and de-duplicate by id
-  final seen = <String>{};
-  final rows = pool.where((r) {
-    final id = _s(r.regionId);
-    final name = (_s(r.regionName));
-    if (id.isEmpty || name.isEmpty) return false;
-    if (seen.contains(id)) return false;
-    seen.add(id);
-    return true;
-  }).toList()
-    ..sort((a, b) => a.regionName.toLowerCase().compareTo(b.regionName.toLowerCase()));
-
-  final items = <DropdownMenuItem<String>>[];
-
-  // Show "All" only for unrestricted roles and only if there is more than 1 option
-  if (unrestricted && rows.length > 1) {
-    items.add(const DropdownMenuItem(value: '', child: Text('All')));
-  }
-
-  items.addAll(rows.map((r) => DropdownMenuItem(
-        value: _s(r.regionId),
-        child: Text(r.regionName),
-      )));
-
-  return items;
-}
-
 
   List<DropdownMenuItem<String>> _areaItems() {
     // Role-aware area options; respect selected region if any

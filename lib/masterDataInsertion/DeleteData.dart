@@ -76,3 +76,24 @@ Future<void> deleteAllProducts() async {
     print('Error deleting Products data: $e');
   }
 }
+
+Future<void> deleteAllDistributors() async {
+  final databaseRef = FirebaseDatabase.instance.ref('Distributors');
+  try {
+    await databaseRef.remove();
+    print('All Distributors data deleted successfully.');
+  } catch (e) {
+    print('Error deleting Distributors data: $e');
+  }
+}
+
+Future<void> deleteAllProductCategory() async {
+  final databaseRef = FirebaseDatabase.instance.ref('ProductCategory');
+  try {
+    await databaseRef.remove();
+    print('All ProductCategory data deleted successfully.');
+  } catch (e) {
+    print('Error deleting ProductCategory data: $e');
+  }
+}
+

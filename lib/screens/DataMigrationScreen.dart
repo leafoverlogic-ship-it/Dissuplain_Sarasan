@@ -9,6 +9,8 @@ import '../masterDataInsertion/InsertsSubAreaData.dart';
 import '../masterDataInsertion/InsertsUserData.dart';
 import '../masterDataInsertion/InsertsCategoryData.dart';
 import '../masterDataInsertion/InsertsProductData.dart';
+import '../masterDataInsertion/InsertsDistributorData.dart';
+import '../masterDataInsertion/InsertsProductCategoryData.dart';
 import '../masterDataInsertion/DeleteData.dart';
 
 class InsertData extends StatefulWidget {
@@ -66,11 +68,25 @@ class _InsertDataState extends State<InsertData> {
               },
               child: Text("Insert Users"),
             ),
-             ElevatedButton(
+            ElevatedButton(
               onPressed: () {
                 insertsProductData();
               },
               child: Text("Insert Products"),
+            ),
+
+            ElevatedButton(
+              onPressed: () {
+                insertsDistributorData();
+              },
+              child: Text("Insert Distributors"),
+            ),
+
+            ElevatedButton(
+              onPressed: () {
+                insertsProductCategoryData();
+              },
+              child: Text("Insert ProductCategory"),
             ),
             ElevatedButton(
               onPressed: () {
@@ -108,11 +124,23 @@ class _InsertDataState extends State<InsertData> {
               },
               child: Text("Delete Categories"),
             ),
-             ElevatedButton(
+            ElevatedButton(
               onPressed: () {
                 deleteAllProducts();
               },
               child: Text("Delete Products"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                deleteAllDistributors();
+              },
+              child: Text("Delete Distributors"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                deleteAllProductCategory();
+              },
+              child: Text("Delete ProductCategory"),
             ),
           ],
         ),
@@ -120,4 +148,3 @@ class _InsertDataState extends State<InsertData> {
     );
   }
 }
-

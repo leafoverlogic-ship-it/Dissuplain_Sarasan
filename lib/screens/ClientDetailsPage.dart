@@ -7,6 +7,8 @@ import '../../dataLayer/activity_logs_repository.dart';
 import '../../dataLayer/regions_repository.dart';
 import '../../dataLayer/areas_repository.dart';
 import '../../dataLayer/subareas_repository.dart';
+import '../../dataLayer/orders_repository.dart';
+import '../../businessLogic/OrdersSection.dart';
 
 import '../CommonHeader.dart';
 import '../CommonFooter.dart';
@@ -33,6 +35,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   late final RegionsRepository _regionsRepo = RegionsRepository(db: _db);
   late final AreasRepository _areasRepo = AreasRepository(db: _db);
   late final SubAreasRepository _subAreasRepo = SubAreasRepository(db: _db);
+  late final OrdersRepository _ordersRepo = OrdersRepository();
 
   // --- Salesperson lookups ---
   // subareaID -> assignedSE (SalesPersonID)
@@ -360,7 +363,14 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
       // Seed once; don’t overwrite on rebuild
       _dropdownValues[key] ??= currentValue.isEmpty ? null : currentValue;
 
-      const base = ['Active', 'Prospect', 'Hot', 'Warm', 'Cold', 'NA']; // allowed values
+      const base = [
+        'Active',
+        'Prospect',
+        'Hot',
+        'Warm',
+        'Cold',
+        'NA',
+      ]; // allowed values
       final items = <DropdownMenuItem<String>>[
         // Ensure current DB value is selectable even if not in base list
         if (currentValue.isNotEmpty && !base.contains(currentValue))
@@ -854,7 +864,14 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             currentFollowupRaw: m['followupDate'],
                           ),
                         ),
-
+                        const SizedBox(height: 12),
+                        if (AppSession().roleId == '4') ...[
+                          OrdersSection(
+                            ordersRepo: _ordersRepo,
+                            customerCode: code, // or whatever you use
+                            customerCategory: widget.client.category ?? '',
+                          ),
+                        ],
                         const SizedBox(height: 8),
                       ],
                     ),
