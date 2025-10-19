@@ -837,7 +837,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                     ),
                     SizedBox(width: 8),
                     Text(
-                      'TEST3 Clients List (${clients.length})',
+                      'Clients List (${clients.length})',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

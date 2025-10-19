@@ -91,6 +91,26 @@ class DistributorRow {
   }
 }
 
+class OrderDisplayLine {
+  final String productCode;
+  final String productName;
+  final double productMRP;
+  final int billQuantity;
+  final int freeQuantity;
+  final double rate;
+  final double totalAmount;
+
+  OrderDisplayLine({
+    required this.productCode,
+    required this.productName,
+    required this.productMRP,
+    required this.billQuantity,
+    required this.freeQuantity,
+    required this.rate,
+    required this.totalAmount,
+  });
+}
+
 class OrderEntry {
   final String orderID;
   final int orderDate;
@@ -106,6 +126,8 @@ class OrderEntry {
   final double totalAmount;
   final String distributorID;
   final String orderConfirmation;
+  final Map<String, dynamic>? productsDetail; // MP-only
+  final double? grandTotal; // MP-only (header sum)
 
   OrderEntry({
     required this.orderID,
@@ -122,6 +144,8 @@ class OrderEntry {
     required this.totalAmount,
     required this.distributorID,
     required this.orderConfirmation,
+    this.productsDetail,
+    this.grandTotal,
   });
 
   factory OrderEntry.fromMap(String id, Map m) {
@@ -142,6 +166,10 @@ class OrderEntry {
       totalAmount: _d(m['totalAmount']),
       distributorID: (m['distributorID'] ?? '').toString(),
       orderConfirmation: (m['orderConfirmation'] ?? 'New').toString(),
+      productsDetail: (m['productsDetail'] is Map)
+          ? Map<String, dynamic>.from(m['productsDetail'] as Map)
+          : null,
+      grandTotal: (m['grandTotal'] != null) ? _d(m['grandTotal']) : null,
     );
   }
 }
@@ -255,6 +283,30 @@ class OrdersRepository {
     });
   }
 
+  Future<void> addMPOrder({
+    required String customerCode,
+    required String orderType,
+    required String billingType,
+    required String distributorID,
+    required double grandTotal,
+    required Map<String, Map<String, dynamic>> productsDetail,
+  }) async {
+    final now = DateTime.now();
+    final orderID = _makeOrderId(now);
+
+    await _ordersRoot.child(customerCode).child(orderID).set({
+      'billingType': billingType,
+      'customerCode': customerCode,
+      'distributorID': distributorID,
+      'orderConfirmation': 'New',
+      'orderDate': now.millisecondsSinceEpoch,
+      'orderID': orderID,
+      'orderType': orderType,
+      'grandTotal': grandTotal,
+      'productsDetail': productsDetail, // { productCode: {...fields...}, ... }
+    });
+  }
+
   Future<void> updateConfirmation(
     String customerCode,
     String orderID,
@@ -269,8 +321,45 @@ class OrdersRepository {
     final yy = dt.year.toString().padLeft(4, '0');
     final MM = dt.month.toString().padLeft(2, '0');
     final DD = dt.day.toString().padLeft(2, '0');
+    final hh = dt.hour.toString().padLeft(2, '0');
     final mm = dt.minute.toString().padLeft(2, '0');
     final ss = dt.second.toString().padLeft(2, '0');
-    return 'ORD-$yy$MM$DD$mm$ss';
+    return 'ORD-$yy$MM$DD$hh$mm$ss';
+  }
+
+  List<OrderDisplayLine> linesFromEntryMP(OrderEntry h) {
+    try {
+      final dyn = h as dynamic;
+      final raw = dyn.productsDetail as Map?; // must exist in MP orders
+      if (raw == null || raw.isEmpty) return const <OrderDisplayLine>[];
+
+      double _d(x) => x is num ? x.toDouble() : double.tryParse('$x') ?? 0.0;
+      int _i(x) => x is num ? x.toInt() : int.tryParse('$x') ?? 0;
+
+      final out = <OrderDisplayLine>[];
+      raw.forEach((code, v) {
+        final m = (v as Map).cast<String, dynamic>();
+        out.add(
+          OrderDisplayLine(
+            productCode: '$code',
+            productName: (m['productName'] ?? '').toString(),
+            productMRP: _d(m['productMRP']),
+            billQuantity: _i(m['billQuantity']),
+            freeQuantity: _i(m['freeQuantity']),
+            rate: _d(m['rate']),
+            totalAmount: _d(m['totalAmount']),
+          ),
+        );
+      });
+      return out;
+    } catch (_) {
+      return const <OrderDisplayLine>[];
+    }
+  }
+
+  double grandTotalFromEntryMP(OrderEntry h) {
+    final lines = linesFromEntryMP(h);
+    final sum = lines.fold<double>(0.0, (a, b) => a + b.totalAmount);
+    return double.parse(sum.toStringAsFixed(2));
   }
 }

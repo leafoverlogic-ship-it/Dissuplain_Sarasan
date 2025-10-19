@@ -12,7 +12,7 @@ class UserNamePwdPage extends StatefulWidget {
 
 class _UserNamePwdPageState extends State<UserNamePwdPage> {
   final _userCtrl = TextEditingController();
-  final _pwdCtrl  = TextEditingController();
+  final _pwdCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
 
@@ -121,7 +121,9 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
       v.forEach((k, raw) {
         if (raw is Map) {
           final m = Map<String, dynamic>.from(raw);
-          final sid = _s(m['subareaID'].toString().isNotEmpty ? m['subareaID'] : k);
+          final sid = _s(
+            m['subareaID'].toString().isNotEmpty ? m['subareaID'] : k,
+          );
           if (_s(m['assignedSE']) == salesPersonId && sid.isNotEmpty) {
             out.add(sid);
           }
@@ -143,28 +145,37 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
   }
 
   Future<void> _login() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final id = _userCtrl.text.trim();
       final pwd = _pwdCtrl.text;
       if (id.isEmpty || pwd.isEmpty) {
-        setState(() { _error = 'Enter username & password'; _loading = false; });
+        setState(() {
+          _error = 'Enter username & password';
+          _loading = false;
+        });
         return;
       }
 
       final user = await _findUser(id, pwd);
       if (user == null) {
-        setState(() { _error = 'Invalid username or password'; _loading = false; });
+        setState(() {
+          _error = 'Invalid username or password';
+          _loading = false;
+        });
         return;
       }
 
       final roleId = _s(user['salesPersonRoleID']);
-      final name   = _s(user['SalesPersonName']);
+      final name = _s(user['SalesPersonName']);
       final bool allAccess = (roleId == '4' || roleId == '5');
 
-      List<String> regionIds   = [];
-      List<String> areaIds     = [];
-      List<String> subareaIds  = [];
+      List<String> regionIds = [];
+      List<String> areaIds = [];
+      List<String> subareaIds = [];
 
       if (!allAccess) {
         if (roleId == '3') {
@@ -178,15 +189,15 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
 
       if (!mounted) return;
       AppSession().setContext(
-          roleId: roleId,
-          salesPersonName: name,
-          salesPersonId: id,
-          allAccess: allAccess,
-          allowedRegionIds: regionIds,
-          allowedAreaIds: areaIds,
-          allowedSubareaIds: subareaIds,
-        );
-        Navigator.of(context).pushReplacement(
+        roleId: roleId,
+        salesPersonName: name,
+        salesPersonId: id,
+        allAccess: allAccess,
+        allowedRegionIds: regionIds,
+        allowedAreaIds: areaIds,
+        allowedSubareaIds: subareaIds,
+      );
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => ClientsSummaryPage(
             roleId: roleId,
@@ -204,9 +215,14 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
         ),
       );
     } catch (e) {
-      setState(() { _error = 'Login failed: $e'; });
+      setState(() {
+        _error = 'Login failed: $e';
+      });
     } finally {
-      if (mounted) setState(() { _loading = false; });
+      if (mounted)
+        setState(() {
+          _loading = false;
+        });
     }
   }
 
@@ -223,11 +239,20 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset('assets/images/Dissuplain_Image.png', height: 120),
+                  Image.asset(
+                    'assets/images/Dissuplain_Image.png',
+                    height: 120,
+                  ),
                   const SizedBox(height: 24),
                   const Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('User Login', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      'User Login',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -249,7 +274,8 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
+                  if (_error != null)
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
@@ -259,7 +285,21 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
                         backgroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: Text(_loading ? 'Signing in…' : 'Sign in', style: const TextStyle(color: Colors.white)),
+                      child: Text(
+                        _loading ? 'Signing in…' : 'Sign in',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20), // spacing below Sign In
+                  const Center(
+                    child: Text(
+                      'v1.1.3', // <-- your fixed version text
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],

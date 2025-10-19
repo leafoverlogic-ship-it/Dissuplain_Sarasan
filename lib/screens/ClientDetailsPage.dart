@@ -72,6 +72,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
 
   // ----- Helpers -----
   static String _s(dynamic v) => v?.toString().trim() ?? '';
+  List<SubAreaEntry> _subAreasR = const [];
 
   String _formatDateish(String key, String raw) {
     if (raw.isEmpty) return '—';
@@ -224,6 +225,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
 
     _subAreasRepo.streamSubAreas().listen((rows) {
       setState(() {
+        _subAreasR = rows; // cache typed rows
         _subareaNames
           ..clear()
           ..addEntries(
@@ -323,6 +325,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   final Set<String> _editableKeys = {
     'GST_Number',
     'Status',
+    if ((AppSession().roleId == '4')) 'subareaName',
     'Visit_Days',
     //'BUSINESS_SLAB', //this is auto-generated, hence, cant be modified
     //'BUSINESS_CAT', //is derived & non-editable
@@ -352,6 +355,85 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
 
   bool _isEditable(String key) => !_noEditByRole && _editableKeys.contains(key);
 
+  Future<List<DropdownMenuItem<String>>> buildSubAreaDropdownItems(
+    String regionId,
+    String areaId,
+  ) async {
+    // If you keep a cached _subAreasR list (like in NewClient), filter that.
+    // Otherwise, pull from your repo stream once (or use any existing cache/map).
+    final List<DropdownMenuItem<String>> items = [];
+    for (final r in _subAreasR) {
+      if (_s(r.regionId) != regionId) continue;
+      if (_s(r.areaId) != areaId) continue;
+      final id = _s(r.subareaId);
+      final name = r.subareaName;
+      if (id.isEmpty || name.isEmpty) continue;
+      items.add(DropdownMenuItem<String>(value: id, child: Text(name)));
+    }
+    return items;
+  }
+
+  Widget _editorForSubarea(Map<String, dynamic> m, String clientKey) {
+    // Pull current Region/Area from the loaded record
+    final String regionId = _s(m['regionID']);
+    final String areaId = _s(m['areaID']);
+
+    // Seed dropdown's value with the current subareaID (NOT the name)
+    _dropdownValues['subareaName'] ??= _s(m['subareaID']).isEmpty
+        ? null
+        : _s(m['subareaID']);
+
+    // Build the items list filtered by region & area.
+    // If you already have a helper like buildSubAreaDropdownItems(regionId, areaId),
+    // use it; otherwise, paste its implementation here (see Note at the end).
+    return FutureBuilder<List<DropdownMenuItem<String>>>(
+      future: buildSubAreaDropdownItems(regionId, areaId),
+      builder: (context, snap) {
+        final items = snap.data ?? const <DropdownMenuItem<String>>[];
+
+        return _wrapEditor(
+          'subareaName',
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'SubArea',
+              border: OutlineInputBorder(),
+            ),
+            // IMPORTANT: value is subareaID
+            value: _dropdownValues['subareaName'],
+            items: items,
+            onChanged: (val) => setState(() {
+              _dropdownValues['subareaName'] = val;
+            }),
+          ),
+          onSave: () async {
+            final String sid = _s(_dropdownValues['subareaName']);
+            final String sname =
+                _subareaNames[sid] ??
+                ''; // display map you already use in build()
+
+            try {
+              await _db.ref('Clients/$clientKey').update({
+                'subareaID': sid,
+                'subareaName': sname,
+              });
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Sub-area updated to "$sname"')),
+              );
+            } catch (e) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to update sub-area: $e')),
+              );
+            }
+            setState(() => _editing['subareaName'] = false);
+          },
+        );
+      },
+    );
+  }
+
   // ---- Editors per key ----
   Widget _editorFor(String key, String currentValue, String clientKey) {
     // Ensure controller seeded
@@ -359,6 +441,60 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
     _ctrls[key]!.text = currentValue;
 
     // Dropdown cases
+
+    if (key == 'subareaName') {
+      // Seed once; don’t overwrite on rebuild
+      _dropdownValues[key] ??= currentValue.isEmpty ? null : currentValue;
+
+      const base = [
+        'Active',
+        'Prospect',
+        'Hot',
+        'Warm',
+        'Cold',
+        'NA',
+      ]; // allowed values
+      final items = <DropdownMenuItem<String>>[
+        // Ensure current DB value is selectable even if not in base list
+        if (currentValue.isNotEmpty && !base.contains(currentValue))
+          DropdownMenuItem(value: currentValue, child: Text(currentValue)),
+        // Base items
+        const DropdownMenuItem(value: 'Active', child: Text('Active')),
+        const DropdownMenuItem(value: 'Prospect', child: Text('Prospect')),
+        const DropdownMenuItem(value: 'Hot', child: Text('Hot')),
+        const DropdownMenuItem(value: 'Warm', child: Text('Warm')),
+        const DropdownMenuItem(value: 'Cold', child: Text('Cold')),
+        const DropdownMenuItem(value: 'NA', child: Text('NA')),
+      ];
+
+      return _wrapEditor(
+        key,
+        DropdownButtonFormField<String>(
+          value: _dropdownValues[key],
+          isExpanded: true,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+          items: items,
+          onChanged: (v) => setState(() => _dropdownValues[key] = v),
+        ),
+        onSave: () async {
+          final v = (_dropdownValues[key] ?? '').trim();
+          try {
+            await _db.ref('Clients/$clientKey').update({'subareaName': v});
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('subareaName updated to "$v"')),
+            );
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to update subareaName: $e')),
+            );
+          }
+          setState(() => _editing[key] = false);
+        },
+      );
+    }
+
     if (key == 'Status') {
       // Seed once; don’t overwrite on rebuild
       _dropdownValues[key] ??= currentValue.isEmpty ? null : currentValue;
@@ -620,7 +756,11 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                     final isEditable = _isEditable(key);
                     Widget content;
                     if (isEdit && isEditable) {
-                      content = _editorFor(key, value, clientKey);
+                      if (key == 'subareaName') {
+                        content = _editorForSubarea(m, clientKey); // <-- NEW
+                      } else {
+                        content = _editorFor(key, value, clientKey);
+                      }
                     } else {
                       content = Text(value.isEmpty ? '—' : value);
                     }
@@ -667,6 +807,11 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                             _dropdownValues[key] = value.isEmpty
                                                 ? null
                                                 : value;
+                                          } else if (key == 'subareaName') {
+                                            _dropdownValues[key] =
+                                                _s(m['subareaID']).isEmpty
+                                                ? null
+                                                : _s(m['subareaID']);
                                           }
                                         }
                                         _editing[key] = !isEdit;
@@ -713,6 +858,11 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                         _dropdownValues[key] = value.isEmpty
                                             ? null
                                             : value;
+                                      } else if (key == 'subareaName') {
+                                        _dropdownValues[key] =
+                                            _s(m['subareaID']).isEmpty
+                                            ? null
+                                            : _s(m['subareaID']);
                                       }
                                     }
                                     _editing[key] = !isEdit;

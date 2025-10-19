@@ -775,6 +775,40 @@ class _NewClientPageState extends State<NewClientPage> {
       return;
     }
 
+    if (_clientNameCtrl.text.trim().isEmpty ||
+        _address1Ctrl.text.trim().isEmpty ||
+        _phone1Ctrl.text.trim().isEmpty ||
+        _typeInstCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please Client Name, Address 1, Phone 1 and Type of Institution before saving.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_instNameCtrl.text.trim().isEmpty) {
+      if (_phNameCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter either Institute Name or Pharmacy.'),
+          ),
+        );
+        return;
+      }
+    } else {
+      if (_address1Ctrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter Institute Address 1.'),
+          ),
+        );
+        return;
+      }
+    }
+
     final customerId = _nextCustomerId!;
     final customerKey = customerId.toString();
 
@@ -795,6 +829,10 @@ class _NewClientPageState extends State<NewClientPage> {
       'categoryCode': _selectedCategoryCode,
       'Customer_ID': customerId.toString(), // hidden numeric id
       'customerCode': _customerCodeCtrl.text,
+      'DateOfFirstCall': _dateOfFirstCall?.toIso8601String(),
+      'OpeningMonth': _openingMonth != null
+          ? '${_openingMonth!.year}-${_openingMonth!.month.toString().padLeft(2, '0')}'
+          : null,
 
       // --- Base fields (caps & lengths already enforced) ---
       'ClientName': _clientNameCtrl.text.trim(),
@@ -804,26 +842,17 @@ class _NewClientPageState extends State<NewClientPage> {
       'Phone2': _phone2Ctrl.text.trim(),
       'PinCode': _pinCodeCtrl.text.trim(),
       'TypeOfInstitution': _typeInstCtrl.text.trim(), // --- Dates ---
-
-      'DateOfFirstCall': _dateOfFirstCall?.toIso8601String(),
-
-      'OpeningMonth': _openingMonth != null
-          ? '${_openingMonth!.year}-${_openingMonth!.month.toString().padLeft(2, '0')}'
-          : null,
-
       'DateOfOpening': _dateOfOpening?.toIso8601String(),
 
-      // --- NEW: Doctor ---
-      'Doc_Mobile_No_1': _docMobileNo1Ctrl.text.trim(),
-      'Doc_Name': _docNameCtrl.text.trim(),
-      'Doc_Mobile_No_2': _docMobileNo2Ctrl.text.trim(),
-
-      // --- NEW: Institution/Clinic ---
+      // --- NEW: Doctor in Institution ---
       'Institution_OR_Clinic_Name': _instNameCtrl.text.trim(),
       'Institution_OR_Clinic_Address_1': _instAddr1Ctrl.text.trim(),
       'Institution_OR_Clinic_Address_2': _instAddr2Ctrl.text.trim(),
       'Institution_OR_Clinic_Landmark': _instLandmarkCtrl.text.trim(),
       'Institution_OR_Clinic_Pin_Code': _instPincodeCtrl.text.trim(),
+      'Doc_Name': _docNameCtrl.text.trim(),
+      'Doc_Mobile_No_1': _docMobileNo1Ctrl.text.trim(),
+      'Doc_Mobile_No_2': _docMobileNo2Ctrl.text.trim(),
 
       // --- NEW: Pharmacy ---
       'Pharmacy_Name': _phNameCtrl.text.trim(),
@@ -843,8 +872,6 @@ class _NewClientPageState extends State<NewClientPage> {
           : (_visitDaysValue ?? ''),
 
       'BUSINESS_SLAB': '',
-			  
-									   
 
       'BUSINESS_CAT': _businessCatCtrl.text.trim(),
       'VISIT_FREQUENCY_In_Days': _visitFreqDaysCtrl.text.trim(),
@@ -1287,12 +1314,15 @@ class _NewClientPageState extends State<NewClientPage> {
                   value: _statusValue,
                   items: const [
                     DropdownMenuItem(value: 'Active', child: Text('Active')),
-                    DropdownMenuItem(value: 'Prospect', child: Text('Prospect')),
+                    DropdownMenuItem(
+                      value: 'Prospect',
+                      child: Text('Prospect'),
+                    ),
                     DropdownMenuItem(value: 'Hot', child: Text('Hot')),
                     DropdownMenuItem(value: 'Warm', child: Text('Warm')),
                     DropdownMenuItem(value: 'Cold', child: Text('Cold')),
                     DropdownMenuItem(value: 'NA', child: Text('NA')),
-                    ],
+                  ],
                   onChanged: (v) => setState(() => _statusValue = v),
                 ),
                 const SizedBox(height: 12),
