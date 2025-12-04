@@ -12,3 +12,4 @@ databaseRef.child('7').set({'productID': '7', 'productCode': 'SAPT', 'productNam
 databaseRef.child('8').set({'productID': '8', 'productCode': 'SAT', 'productName': 'Saral Tablets', 'MRP': '94', 'freeQtyPer10': '0'});
 databaseRef.child('9').set({'productID': '9', 'productCode': 'NEOGS ', 'productName': 'Neerja Gym / Sports', 'MRP': '93', 'freeQtyPer10': '2'});
 }
+

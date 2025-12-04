@@ -47,7 +47,15 @@ class _NewClientPageState extends State<NewClientPage> {
   final _phone1Ctrl = TextEditingController(); // 10 numeric
   final _phone2Ctrl = TextEditingController(); // 10 numeric
   final _pinCodeCtrl = TextEditingController(); // 6 numeric
-  final _typeInstCtrl = TextEditingController(); // 25
+  // final _typeInstCtrl = TextEditingController(); // 25
+  String? _typeInstValue;
+  static const _institutionTypes = [
+    'Clinic',
+    'Gym Suppliment',
+    'Hospital',
+    'NA',
+    'Pharmacy',
+  ];
 
   // Derived/readonly
   final _salesPersonNameCtrl = TextEditingController(); // auto-filled
@@ -217,7 +225,7 @@ class _NewClientPageState extends State<NewClientPage> {
     _phone1Ctrl.dispose();
     _phone2Ctrl.dispose();
     _pinCodeCtrl.dispose();
-    _typeInstCtrl.dispose();
+    //_typeInstCtrl.dispose();
 
     _salesPersonNameCtrl.dispose();
     _customerCodeCtrl.dispose();
@@ -735,7 +743,6 @@ class _NewClientPageState extends State<NewClientPage> {
 
   // ---------- Input formatters ----------
   List<TextInputFormatter> _limit30() => [LengthLimitingTextInputFormatter(30)];
-  List<TextInputFormatter> _limit25() => [LengthLimitingTextInputFormatter(25)];
   List<TextInputFormatter> _digits10() => [
     FilteringTextInputFormatter.digitsOnly,
     LengthLimitingTextInputFormatter(10),
@@ -778,7 +785,7 @@ class _NewClientPageState extends State<NewClientPage> {
     if (_clientNameCtrl.text.trim().isEmpty ||
         _address1Ctrl.text.trim().isEmpty ||
         _phone1Ctrl.text.trim().isEmpty ||
-        _typeInstCtrl.text.trim().isEmpty) {
+        _typeInstValue == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -801,9 +808,7 @@ class _NewClientPageState extends State<NewClientPage> {
     } else {
       if (_address1Ctrl.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter Institute Address 1.'),
-          ),
+          const SnackBar(content: Text('Please enter Institute Address 1.')),
         );
         return;
       }
@@ -841,7 +846,7 @@ class _NewClientPageState extends State<NewClientPage> {
       'Phone1': _phone1Ctrl.text.trim(),
       'Phone2': _phone2Ctrl.text.trim(),
       'PinCode': _pinCodeCtrl.text.trim(),
-      'TypeOfInstitution': _typeInstCtrl.text.trim(), // --- Dates ---
+      'TypeOfInstitution': _typeInstValue, // --- Dates ---
       'DateOfOpening': _dateOfOpening?.toIso8601String(),
 
       // --- NEW: Doctor in Institution ---
@@ -1094,13 +1099,17 @@ class _NewClientPageState extends State<NewClientPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _typeInstCtrl,
-                  inputFormatters: _limit25(),
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Type Of Institution',
                     border: OutlineInputBorder(),
                   ),
+                  value: _typeInstValue,
+                  items: _institutionTypes
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _typeInstValue = v),
                 ),
 
                 const SizedBox(height: 16),

@@ -99,7 +99,7 @@ class OrderDisplayLine {
   final int freeQuantity;
   final double rate;
   final double totalAmount;
-
+  final String billingType;
   OrderDisplayLine({
     required this.productCode,
     required this.productName,
@@ -108,6 +108,7 @@ class OrderDisplayLine {
     required this.freeQuantity,
     required this.rate,
     required this.totalAmount,
+    required this.billingType,
   });
 }
 
@@ -286,7 +287,6 @@ class OrdersRepository {
   Future<void> addMPOrder({
     required String customerCode,
     required String orderType,
-    required String billingType,
     required String distributorID,
     required double grandTotal,
     required Map<String, Map<String, dynamic>> productsDetail,
@@ -295,7 +295,6 @@ class OrdersRepository {
     final orderID = _makeOrderId(now);
 
     await _ordersRoot.child(customerCode).child(orderID).set({
-      'billingType': billingType,
       'customerCode': customerCode,
       'distributorID': distributorID,
       'orderConfirmation': 'New',
@@ -348,6 +347,7 @@ class OrdersRepository {
             freeQuantity: _i(m['freeQuantity']),
             rate: _d(m['rate']),
             totalAmount: _d(m['totalAmount']),
+            billingType: (m['billingType'] ?? 'NET').toString(),
           ),
         );
       });

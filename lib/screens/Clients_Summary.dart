@@ -44,9 +44,13 @@ class ClientsSummaryPage extends StatefulWidget {
 }
 
 class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
+  bool _beatPlanMode = false;
   String _regionId = '';
   String _areaId = '';
   String _subareaId = '';
+
+  final TextEditingController _searchController = TextEditingController();
+  String _searchTerm = '';
 
   final _db = FirebaseDatabase.instance;
   late final _regionsRepo = RegionsRepository(db: _db);
@@ -70,6 +74,8 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
   @override
   void initState() {
     super.initState();
+
+    _beatPlanMode = widget.roleId != '4';
 
     _regionsRepo.streamRegions().listen(
       (rows) {
@@ -179,6 +185,12 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
         _eu = '$e';
       }),
     );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   // Region/area/subarea/lookup functions (as in your starter code)
@@ -327,6 +339,12 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       final codeKey = _normCode(code);
       final Map<String, dynamic>? m = _clientByCode[code];
 
+      String pharmClinicHospName = '';
+      String address01 = '';
+      String address02 = '';
+      String landmark0 = '';
+      String mobile01 = '';
+      String mobile02 = '';
       String customerName = '';
       String address1 = '';
       String address2 = '';
@@ -338,6 +356,24 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       String OrderAmount = 'NA';
 
       if (m != null) {
+        final typeOfInstitution = _pickAny(m, ['Type_of_Institution']);
+        if (typeOfInstitution == 'Pharmacy' ||
+            typeOfInstitution == 'Pharmecy') {
+          pharmClinicHospName = _pickAny(m, ['Pharmacy_Name']);
+          address01 = _pickAny(m, ['Pharmacy_Address_1']);
+          address02 = _pickAny(m, ['Pharmacy_Address_2']);
+          landmark0 = _pickAny(m, ['Pharmacy_Landmark']);
+          mobile01 = _pickAny(m, ['Pharmacy_Mobile_No_1']);
+          mobile02 = _pickAny(m, ['Pharmacy_Mobile_No_2']);
+        } else {
+          pharmClinicHospName = _pickAny(m, ['Institution_OR_Clinic_Name']);
+          address01 = _pickAny(m, ['Institution_OR_Clinic_Address_1']);
+          address02 = _pickAny(m, ['Institution_OR_Clinic_Address_2']);
+          landmark0 = _pickAny(m, ['Institution_OR_Clinic_Landmark']);
+          mobile01 = _pickAny(m, ['Doc_Mobile_No_1']);
+          mobile02 = _pickAny(m, ['Doc_Mobile_No_2']);
+        }
+
         final docName = _pickAny(m, ['Doc_Name', 'DoctorName', 'Doctor_Name']);
         final pharmacyName = _pickAny(m, ['Pharmacy_Person_Name']);
         final isDoc = docName.isNotEmpty;
@@ -350,10 +386,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
             ? _pickAny(m, ['Institution_OR_Clinic_Address_2'])
             : _pickAny(m, ['Pharmacy_Address_2']);
         landmark = isDoc
-            ? _pickAny(m, [
-                'Institution_OR_Clinic_Landmark',
-                'nstitution_OR_Clinic_Landmark',
-              ]) // include typo variant
+            ? _pickAny(m, ['Institution_OR_Clinic_Landmark'])
             : _pickAny(m, ['Pharmacy_Landmark']);
 
         // As per your mapping (even if unusual): pharmacy “mobiles” come from Pharmacy_Address_1/2
@@ -400,7 +433,12 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       row['Destination'] = _subareaName(c.subareaId);
       row['City'] = _areaName(c.areaId);
       row['Sales Person'] = _salesPersonName(c.subareaId);
-
+      row['Pharmacy/Clinic/Hospital Name'] = pharmClinicHospName;
+      row['Address1'] = address01;
+      row['Address2'] = address02;
+      row['Landmark'] = landmark0;
+      row['Mobile1'] = mobile01;
+      row['Mobile2'] = mobile02;
       row['Customer Name'] = customerName;
       row['Address1'] = address1;
       row['Address2'] = address2;
@@ -431,9 +469,15 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
             'Destination',
             'City',
             'Customer Code',
-            'Customer Name',
+            'Pharmacy/Clinic/Hospital Name',
             'Address1',
             'Address2',
+            'Landmark',
+            'Mobile1',
+            'Mobile2',
+            'Customer Name',
+            'Address 1',
+            'Address 2',
             'Landmark',
             'Mobile No 1',
             'Mobile No 2',
@@ -474,11 +518,48 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
     if (_subareaId.isNotEmpty) {
       pool = pool.where((c) => _s(c.subareaId) == _subareaId);
     }
+
+    if (_beatPlanMode && widget.roleId != '4') {
+      final now = DateTime.now();
+      final cutoff = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+
+      bool isDueTodayOrEarlier(CustomerEntry c) {
+        final dt = _parseAnyDate(c.followupDate);
+        if (dt == null) return false;
+        return !dt.isAfter(cutoff);
+      }
+
+      pool = pool.where(isDueTodayOrEarlier);
+    }
+
+    if (_searchTerm.isNotEmpty) {
+      final query = _searchTerm.toLowerCase();
+      final queryDigits = _digitsOnly(_searchTerm);
+      bool matchesMobile(String? raw) {
+        if (raw == null || raw.isEmpty || queryDigits.isEmpty) return false;
+        return _digitsOnly(raw).contains(queryDigits);
+      }
+
+      pool = pool.where((c) {
+        final code = _s(c.customerCode).toLowerCase();
+        if (code.contains(query)) return true;
+        return matchesMobile(c.docMobileNo1) ||
+            matchesMobile(c.docMobileNo2) ||
+            matchesMobile(c.pharmacyMobileNo1) ||
+            matchesMobile(c.pharmacyMobileNo2);
+      });
+    }
+
     final rows = pool.toList();
     rows.sort(
       (a, b) => _fmtYmd(a.followupDate).compareTo(_fmtYmd(b.followupDate)),
     );
     return rows;
+  }
+
+  String _digitsOnly(String? input) {
+    if (input == null) return '';
+    return input.replaceAll(RegExp(r'[^0-9]'), '');
   }
 
   DateTime? _parseAnyDate(dynamic v) {
@@ -584,15 +665,21 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
         'Destination',
         'City',
         'Customer Code',
-        'Customer Name',
+        'Pharmacy/Clinic/Hospital Name',
         'Address1',
         'Address2',
         'Landmark',
-        'Mobile No 1',
-        'Mobile No 2',
-        'Order Type',
-        'Order Details',
-        'Order Amount',
+        'Mobile1',
+        'Mobile2',
+        'Customer Name',
+        //'Address 1',
+        //'Address 2',
+        //'Landmark',
+        //'Mobile No 1',
+        //'Mobile No 2',
+        //'Order Type',
+        //'Order Details',
+        //'Order Amount',
         'Visit Brief',
         'Call Response',
         'Followup Date',
@@ -607,7 +694,9 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
 
       final now = DateTime.now();
       final fileName =
-          'BeatPlan_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv';
+          _beatPlanMode ? 'BeatPlan_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv'
+           :'ClientsList_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv'
+          ;
       final csvData = sb.toString();
 
       // Save and export using robust logic
@@ -759,6 +848,9 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
 
   Widget build(BuildContext context) {
     final clients = _filteredClients();
+    final titleText = _beatPlanMode
+        ? 'Beat Plan'
+        : 'Clients List';
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -766,10 +858,34 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
           child: Column(
             children: [
               CommonHeader(
-                pageTitle: 'Beat Plan',
+                pageTitle: 'Clients Summary',
                 userName: widget.salesPersonName,
                 onLogout: widget.onLogout,
                 roleId: widget.roleId,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) =>
+                      setState(() => _searchTerm = value.trim()),
+                  decoration: InputDecoration(
+                    labelText: 'Search by client code or mobile number',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchTerm.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchTerm = '');
+                            },
+                          ),
+                    border: const OutlineInputBorder(),
+                  ),
+                  textInputAction: TextInputAction.search,
+                  keyboardType: TextInputType.text,
+                ),
               ),
               _rowDropdown(
                 label: 'Region',
@@ -836,13 +952,21 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                       color: Colors.grey,
                     ),
                     SizedBox(width: 8),
-                    Text(
-                      'Clients List (${clients.length})',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          setState(() => _beatPlanMode = !_beatPlanMode),
+                      icon: Icon(
+                        _beatPlanMode ? Icons.event_available : Icons.list,
                       ),
+                      label: Text('$titleText (${clients.length})'),
                     ),
+                    //Text(
+                    //  'Clients List (${clients.length})',
+                    //  style: TextStyle(
+                    //    fontSize: 16,
+                    //    fontWeight: FontWeight.bold,
+                    //  ),
+                    //),
                     SizedBox(width: 8),
 
                     /*ElevatedButton.icon(
@@ -858,8 +982,8 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                         backgroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text(
-                        'Export Beat Plan',
+                      child: Text(
+                        ' Export $titleText ',
                         style: TextStyle(color: Colors.white),
                       ),
                     ),
@@ -873,7 +997,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                         ),
                         icon: const Icon(Icons.file_download),
                         label: const Text(
-                          'Export Clients Master',
+                          ' Export Clients Master ',
                           style: TextStyle(color: Colors.white),
                         ),
                       ),

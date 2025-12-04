@@ -16,26 +16,11 @@ class OrdersSection extends StatefulWidget {
   State<OrdersSection> createState() => _OrdersSectionState();
 }
 
-class _DisplayLine {
-  final String code, name;
-  final double mrp, rate, total;
-  final int qty, free;
-
-  _DisplayLine({
-    required this.code,
-    required this.name,
-    required this.mrp,
-    required this.qty,
-    required this.free,
-    required this.rate,
-    required this.total,
-  });
-}
-
 class _OrdersSectionState extends State<OrdersSection> {
   final _orderTypes = const ['1st Order', 'Repeat Order'];
-  final _billingTypes = const ['With Scheme', 'NET'];
   final _statusFilters = const ['All', 'New', 'Confirmed', 'Cancelled'];
+  final Map<String, bool> _mpBillingTypeWithScheme = {};
+  String _mpBillingTypeString(bool v) => v ? 'With Scheme' : 'NET';
   String _resolvedCatCode = ''; // e.g. "S"
 
   // === MULTI-PRODUCT: state ===
@@ -62,6 +47,35 @@ class _OrdersSectionState extends State<OrdersSection> {
   List<DistributorRow> _distributors = [];
   List<OrderEntry> _orders = [];
   List<ProductCategoryRow> _pcRows = [];
+
+  Widget _mpBuildBillingTypeSwitch(int i) {
+    if (i < 0 || i >= mp_rows.length) return const SizedBox.shrink();
+    final r = mp_rows[i];
+    final code = r.code;
+    final current =
+        _mpBillingTypeWithScheme[code] ?? false; // default NET (off)
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Switch.adaptive(
+          value: current,
+          onChanged: (v) {
+            setState(() {
+              _mpBillingTypeWithScheme[code] = v;
+              mp_recomputeRow(i); // recompute only this row
+            });
+          },
+          activeColor: Colors.green,
+          activeTrackColor: Colors.green.withOpacity(0.5),
+          inactiveThumbColor: Colors.grey,
+          inactiveTrackColor: Colors.grey.withOpacity(0.4),
+        ),
+        const SizedBox(width: 8),
+        Text(_mpBillingTypeString(current)),
+      ],
+    );
+  }
 
   @override
   void initState() {
@@ -134,23 +148,24 @@ class _OrdersSectionState extends State<OrdersSection> {
     if (i < 0 || i >= mp_rows.length) return;
     final r = mp_rows[i];
 
+    // Only per-row switch now. Default is NET (false).
+    final bool useScheme = _mpBillingTypeWithScheme[r.code] ?? false;
+
     // === RATE ===
-    if (_billingType == 'With Scheme') {
+    if (useScheme) {
       r.rate = r.mrp * (1 - r.discountScheme);
-    } else if (_billingType == 'NET') {
-      r.rate = r.mrp * (1 - r.discountNET);
     } else {
-      r.rate = r.mrp;
+      r.rate = r.mrp * (1 - r.discountNET);
     }
 
     // === FREE QTY ===
-    r.free = (_billingType == 'With Scheme')
-        ? (r.qty ~/ 10) * r.freePer10Scheme
-        : 0;
+    r.free = useScheme ? (r.qty ~/ 10) * r.freePer10Scheme : 0;
 
+    // === TOTAL ===
     r.total = double.parse((r.qty * r.rate).toStringAsFixed(2));
-    final newTotal = double.parse((r.qty * r.rate).toStringAsFixed(2));
 
+    // (Optional redundancy retained to match your existing style)
+    final newTotal = double.parse((r.qty * r.rate).toStringAsFixed(2));
     r
       ..rate = r.rate
       ..free = r.free
@@ -166,14 +181,10 @@ class _OrdersSectionState extends State<OrdersSection> {
 
   Future<void> _saveMPOrder() async {
     // Basic validations (same style as your single-product save)
-    if ((_orderType ?? '').isEmpty ||
-        (_billingType ?? '').isEmpty ||
-        (_distributorId ?? '').isEmpty) {
+    if ((_orderType ?? '').isEmpty || (_distributorId ?? '').isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Please select Order Type, Billing Type and Distributor',
-          ),
+          content: Text('Please select Order Type and Distributor'),
         ),
       );
       return;
@@ -195,6 +206,9 @@ class _OrdersSectionState extends State<OrdersSection> {
     double grand = 0.0;
 
     for (final r in nonZero) {
+      final bool billingSwitchState =
+          _mpBillingTypeWithScheme[r.code] ?? false; // false => NET
+      final String billingType = _mpBillingTypeString(billingSwitchState);
       productsDetail[r.code] = {
         'productName': r.name,
         'productMRP': r.mrp,
@@ -202,6 +216,7 @@ class _OrdersSectionState extends State<OrdersSection> {
         'totalAmount': double.parse(r.total.toStringAsFixed(2)),
         'billQuantity': r.qty,
         'freeQuantity': r.free,
+        'billingType': billingType,
       };
       grand += r.total;
     }
@@ -220,7 +235,6 @@ class _OrdersSectionState extends State<OrdersSection> {
     await widget.ordersRepo.addMPOrder(
       customerCode: widget.customerCode,
       orderType: _orderType!,
-      billingType: _billingType!,
       distributorID: _distributorId!,
       grandTotal: grandTotal,
       productsDetail: productsDetail,
@@ -325,6 +339,7 @@ class _OrdersSectionState extends State<OrdersSection> {
     final filtered = _orders
         .where((o) => _filter == 'All' ? true : o.orderConfirmation == _filter)
         .toList();
+
     Widget dCell(Widget child, double w, {bool right = false}) => SizedBox(
       width: w,
       child: Align(
@@ -358,6 +373,7 @@ class _OrdersSectionState extends State<OrdersSection> {
       const double wFree = 120;
       const double wRate = 100;
       const double wTot = 140;
+      const double wBill = 160;
 
       final rows = <Widget>[
         // header
@@ -369,6 +385,10 @@ class _OrdersSectionState extends State<OrdersSection> {
               h('Product Name', wName),
               h('MRP', wMrp, right: true),
               h('Billing\nQuantity', wQty, right: true),
+              Padding(
+                padding: const EdgeInsets.only(left: 12.0), // <-- adds gap
+                child: h('Billing Type', wBill),
+              ),
               h('Free\nQuantity', wFree, right: true),
               h('Rate', wRate, right: true),
               h('Product Total', wTot, right: true),
@@ -416,7 +436,10 @@ class _OrdersSectionState extends State<OrdersSection> {
                   wQty,
                   right: true,
                 ),
-
+                Padding(
+                  padding: const EdgeInsets.only(left: 12.0),
+                  child: c(_mpBuildBillingTypeSwitch(i), wBill),
+                ),
                 c(Text(r.free.toString()), wFree, right: true),
                 c(Text(r.rate.toStringAsFixed(2)), wRate, right: true),
                 c(Text(r.total.toStringAsFixed(2)), wTot, right: true),
@@ -509,6 +532,17 @@ class _OrdersSectionState extends State<OrdersSection> {
             ),
             Expanded(
               flex: 12,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 12.0),
+                child: Text(
+                  'Billing Type',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.left,
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 12,
               child: Text(
                 'Free Quantity',
                 textAlign: TextAlign.right,
@@ -557,6 +591,18 @@ class _OrdersSectionState extends State<OrdersSection> {
             ),
             Expanded(
               flex: 12,
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: 12.0,
+                ), // adjust gap as needed
+                child: Text(
+                  l.billingType,
+                  textAlign: TextAlign.left,
+                ), // if this errors as nullable, use: Text(l.billingType ?? '')
+              ),
+            ),
+            Expanded(
+              flex: 12,
               child: Text(
                 l.freeQuantity.toString(),
                 textAlign: TextAlign.right,
@@ -600,7 +646,6 @@ class _OrdersSectionState extends State<OrdersSection> {
                         Expanded(flex: 16, child: _head('Order ID')),
                         Expanded(flex: 14, child: _head('Confirmation')),
                         Expanded(flex: 14, child: _head('Order Type')),
-                        Expanded(flex: 14, child: _head('Billing Type')),
                         Expanded(flex: 22, child: _head('Distributor')),
                         Expanded(flex: 14, child: _head('Order Date')),
                         Expanded(flex: 10, child: _head('Grand Total')),
@@ -619,7 +664,6 @@ class _OrdersSectionState extends State<OrdersSection> {
                       ),
                       Expanded(flex: 14, child: Text(h.orderConfirmation)),
                       Expanded(flex: 14, child: Text(h.orderType)),
-                      Expanded(flex: 14, child: Text(h.billingType)),
                       Expanded(
                         flex: 22,
                         child: Text(_distName(h.distributorID)),
@@ -662,6 +706,7 @@ class _OrdersSectionState extends State<OrdersSection> {
     const double wRate = 100;
     const double wTot = 140;
     return Card(
+      color: Colors.white,
       child: ExpansionTile(
         initiallyExpanded: true,
         title: const Text(
@@ -696,136 +741,6 @@ class _OrdersSectionState extends State<OrdersSection> {
                             .toList(),
                         onChanged: (v) => setState(() => _orderType = v),
                         isDense: true,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Billing Type',
-                        ),
-                        value: _billingType,
-                        items: _billingTypes
-                            .map(
-                              (e) => DropdownMenuItem(value: e, child: Text(e)),
-                            )
-                            .toList(),
-                        onChanged: (v) {
-                          setState(() => _billingType = v);
-                          _recompute();
-                          mp_recomputeAll();
-                        },
-                        isDense: true,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                // One data row (reuses your existing state/logic)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10.0),
-                  child: Row(
-                    children: [
-                      // Product Code (dropdown)
-                      dCell(
-                        SizedBox(
-                          width: wCode - 10,
-                          child: DropdownButtonFormField<String>(
-                            isDense: true,
-                            value: _productCode,
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            items: _products
-                                .map(
-                                  (p) => DropdownMenuItem(
-                                    value: p.productCode,
-                                    child: Text(
-                                      '${p.productCode} (${p.productName})',
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) {
-                              setState(() => _productCode = v);
-                              _recompute();
-                            },
-                          ),
-                        ),
-                        wCode,
-                      ),
-
-                      // Product Name (readonly)
-                      dCell(
-                        Text(
-                          _productName ?? '',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        wName,
-                      ),
-
-                      // MRP (readonly)
-                      dCell(
-                        Text((_mrp == 0 ? '' : _mrp.toStringAsFixed(2))),
-                        wMrp,
-                        right: true,
-                      ),
-
-                      // Billing Quantity (editable)
-                      dCell(
-                        SizedBox(
-                          width: wQty - 10,
-                          child: TextFormField(
-                            controller: _qtyCtl,
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.right,
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              hintText: '0',
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            onChanged: (_) => _recompute(),
-                          ),
-                        ),
-                        wQty,
-                        right: true,
-                      ),
-
-                      // Free Qty (readonly)
-                      dCell(Text((_freeQty).toString()), wFree, right: true),
-
-                      // Rate (readonly)
-                      dCell(Text(_rate.toStringAsFixed(2)), wRate, right: true),
-
-                      // Product Total (readonly)
-                      dCell(Text(_total.toStringAsFixed(2)), wTot, right: true),
-                    ],
-                  ),
-                ),
-
-                const Divider(height: 1),
-                const SizedBox(height: 8),
-
-                // Grand Total (same as product total for single-product order)
-                Row(
-                  children: [
-                    const Spacer(),
-                    Text(
-                      'Grand Total',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(width: 24),
-                    SizedBox(
-                      width: wTot,
-                      child: Text(
-                        _total.toStringAsFixed(2),
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -904,6 +819,7 @@ class _MpRow {
   int free;
   double rate;
   double total;
+
   _MpRow({
     required this.code,
     required this.name,
