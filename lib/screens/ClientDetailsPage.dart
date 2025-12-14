@@ -441,6 +441,38 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
     _ctrls[key]!.text = currentValue;
 
     // Dropdown cases
+    if (key == 'Type_of_Institution') {
+      const opts = [
+        'Clinic',
+        'Hospital',
+        'Pharmacy',
+        'GYM/Sports',
+        'Physiotherapy Centre',
+      ];
+      // do not auto-select the existing value; keep null until user picks
+      _dropdownValues[key] ??= null;
+
+      return _wrapEditor(
+        key,
+        DropdownButtonFormField<String>(
+          value: _dropdownValues[key],
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Type of Institution',
+            border: OutlineInputBorder(),
+          ),
+          items: opts
+              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+              .toList(),
+          onChanged: (v) => setState(() => _dropdownValues[key] = v),
+        ),
+        onSave: () async {
+          final v = (_dropdownValues[key] ?? '').trim();
+          await _db.ref('Clients/$clientKey').update({key: v});
+          setState(() => _editing[key] = false);
+        },
+      );
+    }
 
     if (key == 'subareaName') {
       // Seed once; don’t overwrite on rebuild
@@ -888,7 +920,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             _pair('Category', _s(m['Category'])),
                             _pair(
                               'Type_of_Institution',
-                              _s(m['Type_of_Institution']),
+                              _s(m['Type_of_Institution'] ?? m['TypeOfInstitution']),
                             ),
                             _pair(
                               'Opening_Month',

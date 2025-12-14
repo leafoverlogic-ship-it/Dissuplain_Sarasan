@@ -51,10 +51,10 @@ class _NewClientPageState extends State<NewClientPage> {
   String? _typeInstValue;
   static const _institutionTypes = [
     'Clinic',
-    'Gym Suppliment',
     'Hospital',
-    'NA',
     'Pharmacy',
+    'GYM/Sports',
+    'Physiotherapy Centre'
   ];
 
   // Derived/readonly
@@ -846,7 +846,7 @@ class _NewClientPageState extends State<NewClientPage> {
       'Phone1': _phone1Ctrl.text.trim(),
       'Phone2': _phone2Ctrl.text.trim(),
       'PinCode': _pinCodeCtrl.text.trim(),
-      'TypeOfInstitution': _typeInstValue, // --- Dates ---
+      'Type_Of_Institution': _typeInstValue, // --- Dates ---
       'DateOfOpening': _dateOfOpening?.toIso8601String(),
 
       // --- NEW: Doctor in Institution ---

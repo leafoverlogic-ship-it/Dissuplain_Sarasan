@@ -31,6 +31,11 @@ class ProductCategoryRow {
   final double discountNET; // e.g. 0.44  (44% off)
   final double discountScheme; // e.g. 0.3825 (38.25% off)
   final int freePer10Scheme; // e.g. 1
+  final int netBulkMOQ;
+  final int schemeBulkMOQ;
+  final double discountNETBulk;
+  final double discountSchemeBulk;
+  final int freeQtyBulkScheme;
 
   ProductCategoryRow({
     required this.productCode,
@@ -38,6 +43,11 @@ class ProductCategoryRow {
     required this.discountNET,
     required this.discountScheme,
     required this.freePer10Scheme,
+    required this.netBulkMOQ,
+    required this.schemeBulkMOQ,
+    required this.discountNETBulk,
+    required this.discountSchemeBulk,
+    required this.freeQtyBulkScheme,
   });
 
   factory ProductCategoryRow.fromMap(Map m) {
@@ -49,6 +59,11 @@ class ProductCategoryRow {
       discountNET: _d(m['discountNET']),
       discountScheme: _d(m['discountScheme']),
       freePer10Scheme: _i(m['freeQtyPer10Scheme']),
+      netBulkMOQ: _i(m['NETBulkMOQ']),
+      schemeBulkMOQ: _i(m['SchemeBulkMOQ']),
+      discountNETBulk: _d(m['discountNETBulk']),
+      discountSchemeBulk: _d(m['discountSchemeBulk']),
+      freeQtyBulkScheme: _i(m['freeQtyBulkScheme']),
     );
   }
 
@@ -58,6 +73,11 @@ class ProductCategoryRow {
     discountNET: 0,
     discountScheme: 0,
     freePer10Scheme: 0,
+    netBulkMOQ: 0,
+    schemeBulkMOQ: 0,
+    discountNETBulk: 0,
+    discountSchemeBulk: 0,
+    freeQtyBulkScheme: 0,
   );
 }
 
@@ -255,6 +275,8 @@ class OrdersRepository {
     required String customerCode,
     required String orderType,
     required String billingType,
+    required String salesPersonID,
+    String amApproverID = '',
     required String productCode,
     required String productName,
     required double productMRP,
@@ -272,6 +294,8 @@ class OrdersRepository {
       'customerCode': customerCode,
       'orderType': orderType,
       'billingType': billingType,
+      'salesPersonID': salesPersonID,
+      'amApproverID': amApproverID,
       'productCode': productCode,
       'productName': productName,
       'productMRP': productMRP,
@@ -288,6 +312,8 @@ class OrdersRepository {
     required String customerCode,
     required String orderType,
     required String distributorID,
+    required String salesPersonID,
+    String amApproverID = '',
     required double grandTotal,
     required Map<String, Map<String, dynamic>> productsDetail,
   }) async {
@@ -303,17 +329,26 @@ class OrdersRepository {
       'orderType': orderType,
       'grandTotal': grandTotal,
       'productsDetail': productsDetail, // { productCode: {...fields...}, ... }
+      'salesPersonID': salesPersonID,
+      'amApproverID': amApproverID,
     });
   }
 
   Future<void> updateConfirmation(
     String customerCode,
     String orderID,
-    String newStatus,
-  ) async {
-    await _ordersRoot.child(customerCode).child(orderID).update({
-      'orderConfirmation': newStatus,
-    });
+    String newStatus, {
+    String? approverId,
+  }) async {
+    final data = <String, Object?>{'orderConfirmation': newStatus};
+
+    // Keep AM approver blank until a confirmation action supplies it
+    if (newStatus == 'Confirmed' && approverId != null && approverId.trim().isNotEmpty) {
+      data['amApproverID'] = approverId.trim();
+    } else {
+      data['amApproverID'] = '';
+    }
+    await _ordersRoot.child(customerCode).child(orderID).update(data);
   }
 
   String _makeOrderId(DateTime dt) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../dataLayer/orders_repository.dart';
+import 'package:dissuplain_app_web_mobile/dataLayer/orders_repository.dart';
+import 'package:dissuplain_app_web_mobile/app_session.dart';
 
 class OrdersSection extends StatefulWidget {
   final OrdersRepository ordersRepo;
@@ -29,7 +30,29 @@ class _OrdersSectionState extends State<OrdersSection> {
       {}; // productCode -> mapping row
   final List<TextEditingController> mp_qtyCtrls = [];
 
-  double get mp_grandTotal => mp_rows.fold<double>(0.0, (a, r) => a + r.total);
+  //double get mp_grandTotal => mp_rows.fold<double>(0.0, (a, r) => a + r.total);
+
+  double get mp_grandTotal {
+    double sum = 0.0;
+    for (final r in mp_rows) {
+      final qty = r.qty < 0 ? 0 : r.qty;
+      final base =
+          r.total; // keep row rate/total untouched for display and storage
+      final useScheme = _mpBillingTypeWithScheme[r.code] ?? false;
+      final bulkMoq = useScheme ? r.schemeBulkMOQ : r.netBulkMOQ;
+      final belowBulk = bulkMoq > 0 ? qty < bulkMoq : false;
+
+      if (_cd && belowBulk) {
+        sum += base * 0.97; // 3% extra off only in grand total
+      } else {
+        sum += base;
+      }
+    }
+    return double.parse(sum.toStringAsFixed(2));
+  }
+
+  bool _cd =
+      false; // Additional 3% off below bulk MOQ, applies only in grand total
 
   String? _orderType;
   String? _billingType;
@@ -47,6 +70,14 @@ class _OrdersSectionState extends State<OrdersSection> {
   List<DistributorRow> _distributors = [];
   List<OrderEntry> _orders = [];
   List<ProductCategoryRow> _pcRows = [];
+  final String _salesPersonId = AppSession().salesPersonId ?? '';
+  final String _currentUserId = AppSession().salesPersonId ?? '';
+  final String _roleId = AppSession().roleId ?? '';
+  bool get _canEditStatus {
+    final n = int.tryParse(_roleId);
+    if (n == null) return false;
+    return n >= 2; // Area Manager or above
+  }
 
   Widget _mpBuildBillingTypeSwitch(int i) {
     if (i < 0 || i >= mp_rows.length) return const SizedBox.shrink();
@@ -148,28 +179,28 @@ class _OrdersSectionState extends State<OrdersSection> {
     if (i < 0 || i >= mp_rows.length) return;
     final r = mp_rows[i];
 
-    // Only per-row switch now. Default is NET (false).
     final bool useScheme = _mpBillingTypeWithScheme[r.code] ?? false;
+    final int qty = r.qty < 0 ? 0 : r.qty;
 
-    // === RATE ===
     if (useScheme) {
-      r.rate = r.mrp * (1 - r.discountScheme);
+      final bool hitBulk = r.schemeBulkMOQ > 0 && qty >= r.schemeBulkMOQ;
+      final double disc = hitBulk ? r.discountSchemeBulk : r.discountScheme;
+      r.rate = r.mrp * (1 - disc);
+
+      // Free qty for scheme: bulk freeQty if MOQ hit, else per-10 scheme free
+      if (hitBulk && r.freeQtyBulkScheme > 0) {
+        r.free = r.freeQtyBulkScheme;
+      } else {
+        r.free = (qty ~/ 10) * r.freePer10Scheme;
+      }
     } else {
-      r.rate = r.mrp * (1 - r.discountNET);
+      final bool hitBulk = r.netBulkMOQ > 0 && qty >= r.netBulkMOQ;
+      final double disc = hitBulk ? r.discountNETBulk : r.discountNET;
+      r.rate = r.mrp * (1 - disc);
+      r.free = 0; // NET has no free qty
     }
 
-    // === FREE QTY ===
-    r.free = useScheme ? (r.qty ~/ 10) * r.freePer10Scheme : 0;
-
-    // === TOTAL ===
-    r.total = double.parse((r.qty * r.rate).toStringAsFixed(2));
-
-    // (Optional redundancy retained to match your existing style)
-    final newTotal = double.parse((r.qty * r.rate).toStringAsFixed(2));
-    r
-      ..rate = r.rate
-      ..free = r.free
-      ..total = newTotal;
+    r.total = double.parse((qty * r.rate).toStringAsFixed(2));
   }
 
   void mp_recomputeAll() {
@@ -209,6 +240,10 @@ class _OrdersSectionState extends State<OrdersSection> {
       final bool billingSwitchState =
           _mpBillingTypeWithScheme[r.code] ?? false; // false => NET
       final String billingType = _mpBillingTypeString(billingSwitchState);
+      final belowBulk = billingSwitchState
+          ? (r.schemeBulkMOQ > 0 && r.qty < r.schemeBulkMOQ)
+          : (r.netBulkMOQ > 0 && r.qty < r.netBulkMOQ);
+      final bool cdApplied = _cd && belowBulk;
       productsDetail[r.code] = {
         'productName': r.name,
         'productMRP': r.mrp,
@@ -217,11 +252,13 @@ class _OrdersSectionState extends State<OrdersSection> {
         'billQuantity': r.qty,
         'freeQuantity': r.free,
         'billingType': billingType,
+        'cdApplied': cdApplied ? 1 : 0,
       };
       grand += r.total;
     }
 
-    final grandTotal = double.parse(grand.toStringAsFixed(2));
+    final grandTotal = mp_grandTotal;
+    //double.parse(grand.toStringAsFixed(2));
 
     if (grandTotal == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -236,6 +273,7 @@ class _OrdersSectionState extends State<OrdersSection> {
       customerCode: widget.customerCode,
       orderType: _orderType!,
       distributorID: _distributorId!,
+      salesPersonID: _salesPersonId,
       grandTotal: grandTotal,
       productsDetail: productsDetail,
     );
@@ -294,6 +332,11 @@ class _OrdersSectionState extends State<OrdersSection> {
           discountNET: pc.discountNET,
           discountScheme: pc.discountScheme,
           freePer10Scheme: pc.freePer10Scheme,
+          netBulkMOQ: pc.netBulkMOQ,
+          schemeBulkMOQ: pc.schemeBulkMOQ,
+          discountNETBulk: pc.discountNETBulk,
+          discountSchemeBulk: pc.discountSchemeBulk,
+          freeQtyBulkScheme: pc.freeQtyBulkScheme,
         ),
       );
       mp_qtyCtrls.add(TextEditingController(text: '0'));
@@ -451,7 +494,26 @@ class _OrdersSectionState extends State<OrdersSection> {
 
       rows.add(const Divider(height: 1));
 
+      rows.add(
+        Row(
+          children: [
+            const Spacer(),
+            const Text('CD'),
+            Switch.adaptive(
+              value: _cd,
+              onChanged: (v) => setState(() => _cd = v),
+              activeColor: Colors.green,
+              activeTrackColor: Colors.green.withOpacity(0.5),
+              inactiveThumbColor: Colors.grey,
+              inactiveTrackColor: Colors.grey.withOpacity(0.4),
+            ),
+          ],
+        ),
+      );
+      rows.add(const SizedBox(height: 8));
+
       // grand total line
+
       rows.add(const SizedBox(height: 8));
       rows.add(
         Row(
@@ -662,7 +724,30 @@ class _OrdersSectionState extends State<OrdersSection> {
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
-                      Expanded(flex: 14, child: Text(h.orderConfirmation)),
+                      Expanded(
+                        flex: 14,
+                        child: _canEditStatus
+                            ? _InlineStatusEditor(
+                                initial: h.orderConfirmation,
+                                onSave: (v) async {
+                                  final approverId =
+                                      v == 'Confirmed' ? _currentUserId : '';
+                                  await widget.ordersRepo.updateConfirmation(
+                                    widget.customerCode,
+                                    h.orderID,
+                                    v,
+                                    approverId: approverId,
+                                  );
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Status updated to $v'),
+                                    ),
+                                  );
+                                },
+                              )
+                            : Text(h.orderConfirmation),
+                      ),
                       Expanded(flex: 14, child: Text(h.orderType)),
                       Expanded(
                         flex: 22,
@@ -815,6 +900,11 @@ class _MpRow {
   final double discountNET;
   final double discountScheme;
   final int freePer10Scheme;
+  final int netBulkMOQ;
+  final int schemeBulkMOQ;
+  final double discountNETBulk;
+  final double discountSchemeBulk;
+  final int freeQtyBulkScheme;
   int qty;
   int free;
   double rate;
@@ -827,6 +917,11 @@ class _MpRow {
     required this.discountNET,
     required this.discountScheme,
     required this.freePer10Scheme,
+    required this.netBulkMOQ,
+    required this.schemeBulkMOQ,
+    required this.discountNETBulk,
+    required this.discountSchemeBulk,
+    required this.freeQtyBulkScheme,
     this.qty = 0,
     this.free = 0,
     this.rate = 0.0,
@@ -836,23 +931,35 @@ class _MpRow {
 
 class _InlineStatusEditor extends StatefulWidget {
   final Future<void> Function(String) onSave;
-  const _InlineStatusEditor({required this.onSave, Key? key}) : super(key: key);
+  final String initial;
+  const _InlineStatusEditor({
+    required this.onSave,
+    this.initial = 'Confirmed',
+    Key? key,
+  }) : super(key: key);
   @override
   State<_InlineStatusEditor> createState() => _InlineStatusEditorState();
 }
 
 class _InlineStatusEditorState extends State<_InlineStatusEditor> {
-  String? _v = 'Confirmed';
+  String? _v;
+  static const List<String> _options = ['', 'Confirmed', 'Cancelled'];
+
+  @override
+  void initState() {
+    super.initState();
+    _v = _options.contains(widget.initial) ? widget.initial : '';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         DropdownButton<String>(
           value: _v,
-          items: const [
-            DropdownMenuItem(value: 'Confirmed', child: Text('Confirmed')),
-            DropdownMenuItem(value: 'Cancelled', child: Text('Cancelled')),
-          ],
+          items: _options
+              .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+              .toList(),
           onChanged: (v) => setState(() => _v = v),
         ),
         IconButton(
@@ -865,7 +972,7 @@ class _InlineStatusEditorState extends State<_InlineStatusEditor> {
         ),
         IconButton(
           icon: const Icon(Icons.close, size: 18),
-          onPressed: () => setState(() => _v = 'Confirmed'),
+          onPressed: () => setState(() => _v = ''),
         ),
       ],
     );
