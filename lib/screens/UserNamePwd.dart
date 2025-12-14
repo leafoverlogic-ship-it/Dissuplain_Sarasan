@@ -294,7 +294,7 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
                   const SizedBox(height: 20), // spacing below Sign In
                   const Center(
                     child: Text(
-                      'v1.3.1',
+                      'v1.3.2',  // application version
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey,
