@@ -19,7 +19,6 @@ class OrdersSection extends StatefulWidget {
 
 class _OrdersSectionState extends State<OrdersSection> {
   final _orderTypes = const ['1st Order', 'Repeat Order'];
-  final _statusFilters = const ['All', 'New', 'Confirmed', 'Cancelled'];
   final Map<String, bool> _mpBillingTypeWithScheme = {};
   String _mpBillingTypeString(bool v) => v ? 'With Scheme' : 'NET';
   String _resolvedCatCode = ''; // e.g. "S"
@@ -29,6 +28,7 @@ class _OrdersSectionState extends State<OrdersSection> {
   final Map<String, ProductCategoryRow> mp_pcByProduct =
       {}; // productCode -> mapping row
   final List<TextEditingController> mp_qtyCtrls = [];
+  final ScrollController _newOrderHCtrl = ScrollController();
 
   //double get mp_grandTotal => mp_rows.fold<double>(0.0, (a, r) => a + r.total);
 
@@ -64,20 +64,11 @@ class _OrdersSectionState extends State<OrdersSection> {
   double _rate = 0.0;
   double _total = 0.0;
   String? _distributorId;
-  String _filter = 'All';
 
   List<ProductRow> _products = [];
   List<DistributorRow> _distributors = [];
-  List<OrderEntry> _orders = [];
   List<ProductCategoryRow> _pcRows = [];
   final String _salesPersonId = AppSession().salesPersonId ?? '';
-  final String _currentUserId = AppSession().salesPersonId ?? '';
-  final String _roleId = AppSession().roleId ?? '';
-  bool get _canEditStatus {
-    final n = int.tryParse(_roleId);
-    if (n == null) return false;
-    return n >= 2; // Area Manager or above
-  }
 
   Widget _mpBuildBillingTypeSwitch(int i) {
     if (i < 0 || i >= mp_rows.length) return const SizedBox.shrink();
@@ -117,9 +108,6 @@ class _OrdersSectionState extends State<OrdersSection> {
     widget.ordersRepo.streamDistributors().listen(
       (v) => setState(() => _distributors = v),
     );
-    widget.ordersRepo
-        .streamForCustomer(widget.customerCode)
-        .listen((v) => setState(() => _orders = v));
     widget.ordersRepo.streamProductCategories().listen((v) {
       if (!mounted) return;
       setState(() => _pcRows = v);
@@ -138,6 +126,7 @@ class _OrdersSectionState extends State<OrdersSection> {
   @override
   void dispose() {
     _qtyCtl.dispose();
+    _newOrderHCtrl.dispose();
     super.dispose();
   }
 
@@ -379,10 +368,6 @@ class _OrdersSectionState extends State<OrdersSection> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _orders
-        .where((o) => _filter == 'All' ? true : o.orderConfirmation == _filter)
-        .toList();
-
     Widget dCell(Widget child, double w, {bool right = false}) => SizedBox(
       width: w,
       child: Align(
@@ -536,358 +521,91 @@ class _OrdersSectionState extends State<OrdersSection> {
       return Column(children: rows);
     }
 
-    Widget _buildOrdersDisplayMP(List<OrderEntry> src) {
-      String _fmtDate(int ms) {
-        final dt = DateTime.fromMillisecondsSinceEpoch(ms);
-        final d = dt.day.toString().padLeft(2, '0');
-        final m = dt.month.toString().padLeft(2, '0');
-        return '$d-$m-${dt.year}';
-      }
-
-      String _distName(String id) => _distributors
-          .firstWhere(
-            (d) => d.distributorID == id,
-            orElse: () => DistributorRow(distributorID: '', firmName: '—'),
-          )
-          .firmName;
-
-      Text _head(String t) => Text(
-        t,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-      );
-
-      Widget _miniHeader() => Padding(
-        padding: const EdgeInsets.only(top: 6, bottom: 4),
-        child: Row(
-          children: const [
-            Expanded(
-              flex: 15,
-              child: Text(
-                'Product Code',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            Expanded(
-              flex: 35,
-              child: Text(
-                'Product Name',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            Expanded(
-              flex: 10,
-              child: Text(
-                'MRP',
-                textAlign: TextAlign.right,
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            Expanded(
-              flex: 12,
-              child: Text(
-                'Billing Quantity',
-                textAlign: TextAlign.right,
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            Expanded(
-              flex: 12,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 12.0),
-                child: Text(
-                  'Billing Type',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                  textAlign: TextAlign.left,
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 12,
-              child: Text(
-                'Free Quantity',
-                textAlign: TextAlign.right,
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            Expanded(
-              flex: 10,
-              child: Text(
-                'Rate',
-                textAlign: TextAlign.right,
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            Expanded(
-              flex: 16,
-              child: Text(
-                'Product Total',
-                textAlign: TextAlign.right,
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ),
-      );
-
-      Widget _miniRow(OrderDisplayLine l) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Expanded(flex: 15, child: Text(l.productCode)),
-            Expanded(flex: 35, child: Text(l.productName)),
-            Expanded(
-              flex: 10,
-              child: Text(
-                l.productMRP.toStringAsFixed(2),
-                textAlign: TextAlign.right,
-              ),
-            ),
-            Expanded(
-              flex: 12,
-              child: Text(
-                l.billQuantity.toString(),
-                textAlign: TextAlign.right,
-              ),
-            ),
-            Expanded(
-              flex: 12,
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  left: 12.0,
-                ), // adjust gap as needed
-                child: Text(
-                  l.billingType,
-                  textAlign: TextAlign.left,
-                ), // if this errors as nullable, use: Text(l.billingType ?? '')
-              ),
-            ),
-            Expanded(
-              flex: 12,
-              child: Text(
-                l.freeQuantity.toString(),
-                textAlign: TextAlign.right,
-              ),
-            ),
-            Expanded(
-              flex: 10,
-              child: Text(
-                l.rate.toStringAsFixed(2),
-                textAlign: TextAlign.right,
-              ),
-            ),
-            Expanded(
-              flex: 16,
-              child: Text(
-                l.totalAmount.toStringAsFixed(2),
-                textAlign: TextAlign.right,
-              ),
-            ),
-          ],
-        ),
-      );
-
-      return Column(
-        children: [
-          for (final h in src)
-            Container(
-              margin: const EdgeInsets.only(bottom: 16), // ← gap between orders
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  // --- header labels ---
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Row(
-                      children: [
-                        Expanded(flex: 16, child: _head('Order ID')),
-                        Expanded(flex: 14, child: _head('Confirmation')),
-                        Expanded(flex: 14, child: _head('Order Type')),
-                        Expanded(flex: 22, child: _head('Distributor')),
-                        Expanded(flex: 14, child: _head('Order Date')),
-                        Expanded(flex: 10, child: _head('Grand Total')),
-                      ],
-                    ),
-                  ),
-                  // --- header values ---
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 16,
-                        child: Text(
-                          h.orderID,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 14,
-                        child: _canEditStatus
-                            ? _InlineStatusEditor(
-                                initial: h.orderConfirmation,
-                                onSave: (v) async {
-                                  final approverId =
-                                      v == 'Confirmed' ? _currentUserId : '';
-                                  await widget.ordersRepo.updateConfirmation(
-                                    widget.customerCode,
-                                    h.orderID,
-                                    v,
-                                    approverId: approverId,
-                                  );
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Status updated to $v'),
-                                    ),
-                                  );
-                                },
-                              )
-                            : Text(h.orderConfirmation),
-                      ),
-                      Expanded(flex: 14, child: Text(h.orderType)),
-                      Expanded(
-                        flex: 22,
-                        child: Text(_distName(h.distributorID)),
-                      ),
-                      Expanded(flex: 14, child: Text(_fmtDate(h.orderDate))),
-                      Expanded(
-                        flex: 10,
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            widget.ordersRepo
-                                .grandTotalFromEntryMP(h)
-                                .toStringAsFixed(2),
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-                  const Divider(height: 1),
-
-                  // --- products mini table ---
-                  _miniHeader(),
-                  const Divider(height: 1),
-                  ...widget.ordersRepo.linesFromEntryMP(h).map(_miniRow),
-                ],
-              ),
-            ),
-        ],
-      );
-    }
-
-    const double wCode = 150;
-    const double wName = 260;
-    const double wMrp = 100;
-    const double wQty = 120;
-    const double wFree = 120;
-    const double wRate = 100;
-    const double wTot = 140;
-    return Card(
-      color: Colors.white,
-      child: ExpansionTile(
-        initiallyExpanded: true,
-        title: const Text(
-          'Orders',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'New Order',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'New Order',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
+        const SizedBox(height: 8),
 
-                // Row: Order Type | Billing Type (unchanged)
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Order Type',
-                        ),
-                        value: _orderType,
-                        items: _orderTypes
-                            .map(
-                              (e) => DropdownMenuItem(value: e, child: Text(e)),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() => _orderType = v),
-                        isDense: true,
-                      ),
-                    ),
-                  ],
+        // Row: Order Type | Billing Type (unchanged)
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Order Type',
                 ),
-
-                const SizedBox(height: 16),
-
-                // Distributor (unchanged)
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Distributor'),
-                  value: _distributorId,
-                  items: _distributors
-                      .map(
-                        (d) => DropdownMenuItem(
-                          value: d.distributorID,
-                          child: Text(d.firmName),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) => setState(() => _distributorId = v),
-                  isDense: true,
-                ),
-
-                const SizedBox(height: 12),
-
-                _buildMultiProductTable(),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: _saveMPOrder,
-                    child: const Text('Save Multi-Product Order'),
-                  ),
-                ),
-                Row(
-                  children: [
-                    const Text(
-                      'Existing Orders',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const Spacer(),
-                    // DropdownButton<String>(
-                    //   value: _filter,
-                    //   items: _statusFilters
-                    //       .map(
-                    //         (e) => DropdownMenuItem(value: e, child: Text(e)),
-                    //       )
-                    //       .toList(),
-                    //   onChanged: (v) => setState(() => _filter = v ?? 'All'),
-                    // ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _buildOrdersDisplayMP(filtered),
-              ],
+                value: _orderType,
+                items: _orderTypes
+                    .map(
+                      (e) => DropdownMenuItem(value: e, child: Text(e)),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => _orderType = v),
+                isDense: true,
+              ),
             ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
+        // Distributor (unchanged)
+        DropdownButtonFormField<String>(
+          decoration: const InputDecoration(labelText: 'Distributor'),
+          value: _distributorId,
+          items: _distributors
+              .map(
+                (d) => DropdownMenuItem(
+                  value: d.distributorID,
+                  child: Text(d.firmName),
+                ),
+              )
+              .toList(),
+          onChanged: (v) => setState(() => _distributorId = v),
+          isDense: true,
+        ),
+
+        const SizedBox(height: 12),
+
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const double targetWidth = 1200;
+            final double contentWidth =
+                constraints.maxWidth > targetWidth ? constraints.maxWidth : targetWidth;
+            return Scrollbar(
+              controller: _newOrderHCtrl,
+              thumbVisibility: true,
+              trackVisibility: true,
+              thickness: 8,
+              scrollbarOrientation: ScrollbarOrientation.bottom,
+              notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: _newOrderHCtrl,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: contentWidth,
+                  child: _buildMultiProductTable(),
+                ),
+              ),
+            );
+          },
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: _saveMPOrder,
+            child: const Text('Save Multi-Product Order'),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -927,54 +645,4 @@ class _MpRow {
     this.rate = 0.0,
     this.total = 0.0,
   });
-}
-
-class _InlineStatusEditor extends StatefulWidget {
-  final Future<void> Function(String) onSave;
-  final String initial;
-  const _InlineStatusEditor({
-    required this.onSave,
-    this.initial = 'Confirmed',
-    Key? key,
-  }) : super(key: key);
-  @override
-  State<_InlineStatusEditor> createState() => _InlineStatusEditorState();
-}
-
-class _InlineStatusEditorState extends State<_InlineStatusEditor> {
-  String? _v;
-  static const List<String> _options = ['', 'Confirmed', 'Cancelled'];
-
-  @override
-  void initState() {
-    super.initState();
-    _v = _options.contains(widget.initial) ? widget.initial : '';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        DropdownButton<String>(
-          value: _v,
-          items: _options
-              .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-              .toList(),
-          onChanged: (v) => setState(() => _v = v),
-        ),
-        IconButton(
-          icon: const Icon(Icons.check, size: 18),
-          onPressed: _v == null
-              ? null
-              : () async {
-                  await widget.onSave(_v!);
-                },
-        ),
-        IconButton(
-          icon: const Icon(Icons.close, size: 18),
-          onPressed: () => setState(() => _v = ''),
-        ),
-      ],
-    );
-  }
 }

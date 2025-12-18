@@ -9,6 +9,7 @@ import '../../dataLayer/areas_repository.dart';
 import '../../dataLayer/subareas_repository.dart';
 import '../../dataLayer/orders_repository.dart';
 import '../../businessLogic/OrdersSection.dart';
+import '../../businessLogic/OrderSection_ExistingOrder.dart';
 
 import '../CommonHeader.dart';
 import '../CommonFooter.dart';
@@ -1048,10 +1049,40 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                         ),
                         const SizedBox(height: 12),
                         if (AppSession().roleId == '4') ...[
-                          OrdersSection(
-                            ordersRepo: _ordersRepo,
-                            customerCode: code, // or whatever you use
-                            customerCategory: widget.client.category ?? '',
+                          _Section(
+                            title: 'Orders',
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final minWidth = constraints.maxWidth;
+                                const double targetWidth = 1200; // ensure table doesn't shrink
+                                final double useWidth = targetWidth > minWidth ? targetWidth : minWidth;
+                                final ScrollController hCtrl = ScrollController();
+                                return Scrollbar(
+                                  controller: hCtrl,
+                                  thumbVisibility: true,
+                                  notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
+                                  child: SingleChildScrollView(
+                                    controller: hCtrl,
+                                    scrollDirection: Axis.horizontal,
+                                    child: SizedBox(
+                                      width: useWidth, // allow extra width and horizontal scroll
+                                      child: OrdersSection(
+                                        ordersRepo: _ordersRepo,
+                                        customerCode: code, // or whatever you use
+                                        customerCategory: widget.client.category ?? '',
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          _Section(
+                            title: 'Existing Orders',
+                            child: OrderSectionExistingOrder(
+                              ordersRepo: _ordersRepo,
+                              customerCode: code,
+                            ),
                           ),
                         ],
                         const SizedBox(height: 8),
