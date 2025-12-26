@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:dissuplain_app_web_mobile/dataLayer/orders_repository.dart';
 import 'package:dissuplain_app_web_mobile/app_session.dart';
 
@@ -6,11 +7,13 @@ class OrderSectionExistingOrder extends StatefulWidget {
   final OrdersRepository ordersRepo;
   final String customerCode;
   final Map<String, String>? userNameById; // optional map for approver names
+  final String? initialOrderId;
   const OrderSectionExistingOrder({
     super.key,
     required this.ordersRepo,
     required this.customerCode,
     this.userNameById,
+    this.initialOrderId,
   });
 
   @override
@@ -33,6 +36,8 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
   String _filter = 'All';
   List<OrderEntry> _orders = [];
   List<DistributorRow> _distributors = [];
+  final Map<String, GlobalKey> _orderKeys = {};
+  bool _didJump = false;
 
   final String _currentUserId = AppSession().salesPersonId ?? '';
   final String _roleId = AppSession().roleId ?? '';
@@ -40,6 +45,19 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
     final n = int.tryParse(_roleId);
     if (n == null) return false;
     return n >= 2; // Area Manager or above
+  }
+
+  bool _gmNeeded(double total) => total > 10000;
+  bool _ceoNeeded(double total) => total >= 20001;
+
+  String _gmLabel(String name, double total) {
+    if (!_gmNeeded(total)) return 'N/A';
+    return name.isEmpty ? 'Needed' : name;
+  }
+
+  String _ceoLabel(String name, double total) {
+    if (!_ceoNeeded(total)) return 'N/A';
+    return name.isEmpty ? 'Needed' : name;
   }
 
   bool _canApproveStage(
@@ -132,7 +150,41 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
     );
   }
 
-    Widget _buildOrdersDisplayMP(List<OrderEntry> src) {
+  void _scheduleJump() {
+    if (_didJump) return;
+    final targetId = widget.initialOrderId;
+    if (targetId == null || targetId.isEmpty) return;
+    final key = _orderKeys[targetId];
+    if (key == null) return;
+    _didJump = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final current = key?.currentContext;
+      if (current == null) {
+        _didJump = false;
+        return;
+      }
+      Scrollable.ensureVisible(
+        current,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  Future<void> _updateDeliveryStatus(
+    String orderId,
+    String status,
+  ) async {
+    final normalized = status.toLowerCase() == 'delivered' ? 'Delivered' : 'Undelivered';
+    final deliveryDate = normalized == 'Delivered'
+        ? DateTime.now().millisecondsSinceEpoch
+        : 0;
+    await FirebaseDatabase.instance
+        .ref('Orders/${widget.customerCode}/$orderId')
+        .update({'deliveryStatus': normalized, 'deliveryDate': deliveryDate});
+  }
+
+  Widget _buildOrdersDisplayMP(List<OrderEntry> src) {
     String _name(String id) {
       if (id.isEmpty) return '';
       final map = widget.userNameById;
@@ -140,6 +192,13 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
       return map[id] ?? id;
     }
     String _fmtDate(int ms) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+      final d = dt.day.toString().padLeft(2, '0');
+      final m = dt.month.toString().padLeft(2, '0');
+      return '$d-$m-${dt.year}';
+    }
+    String _fmtDeliveryDate(int ms) {
+      if (ms <= 0) return '';
       final dt = DateTime.fromMillisecondsSinceEpoch(ms);
       final d = dt.day.toString().padLeft(2, '0');
       final m = dt.month.toString().padLeft(2, '0');
@@ -313,120 +372,162 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
           ),
         );
 
-    return Column(
-      children: [
-        for (final h in src)
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.black12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              children: [
-                // --- header labels ---
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Row(
-                    children: [
-                      Expanded(flex: 16, child: _head('Order ID')),
-                      Expanded(flex: 14, child: _head('Confirmation')),
-                      Expanded(flex: 12, child: _head('AM Approver')),
-                      Expanded(flex: 12, child: _head('GM Approver')),
-                      Expanded(flex: 12, child: _head('CEO Approver')),
-                      Expanded(flex: 14, child: _head('Order Type')),
-                      Expanded(flex: 22, child: _head('Distributor')),
-                      Expanded(flex: 14, child: _head('Order Date')),
-                      Expanded(flex: 10, child: _head('Grand Total')),
-                    ],
-                  ),
-                ),
-                // --- header values ---
-                Row(
+    final children = <Widget>[];
+    for (final h in src) {
+      final total = widget.ordersRepo.grandTotalFromEntryMP(h);
+      final key = _orderKeys.putIfAbsent(h.orderID, () => GlobalKey());
+      children.add(
+        Container(
+          key: key,
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.black12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            children: [
+              // --- header labels ---
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
                   children: [
-                    Expanded(
-                      flex: 16,
-                      child: Text(
-                        h.orderID,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 14,
-                      child: _canEditStatus
-                            ? _InlineStatusEditor(
-                                initial: h.orderConfirmation,
-                                onSave: (v) async {
-                                  final total =
-                                      widget.ordersRepo.grandTotalFromEntryMP(h);
-                                  if (!_canApproveStage(
-                                    v,
-                                    total,
-                                    h.orderConfirmation,
-                                  )) {
-                                    if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'You do not have approval rights for this stage/amount or previous stage is pending.',
-                                        ),
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  final approverId =
-                                      v == 'Cancelled' ? '' : _currentUserId;
-                                  await widget.ordersRepo.updateConfirmation(
-                                    widget.customerCode,
-                                    h.orderID,
-                                    v,
-                                    approverId: approverId,
-                                );
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Status updated to $v'),
-                                  ),
-                                );
-                              },
-                            )
-                          : Text(h.orderConfirmation),
-                    ),
-                    Expanded(flex: 12, child: Text(_name(h.amApproverID))),
-                    Expanded(flex: 12, child: Text(_name(h.gmApproverID))),
-                    Expanded(flex: 12, child: Text(_name(h.ceoApproverID))),
-                    Expanded(flex: 14, child: Text(h.orderType)),
-                    Expanded(
-                      flex: 22,
-                      child: Text(_distName(h.distributorID)),
-                    ),
-                    Expanded(flex: 14, child: Text(_fmtDate(h.orderDate))),
-                    Expanded(
-                      flex: 10,
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          widget.ordersRepo
-                              .grandTotalFromEntryMP(h)
-                              .toStringAsFixed(2),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
+                    Expanded(flex: 16, child: _head('Order ID')),
+                    Expanded(flex: 14, child: _head('Confirmation')),
+                    Expanded(flex: 12, child: _head('AM Approver')),
+                    Expanded(flex: 12, child: _head('GM Approver')),
+                    Expanded(flex: 12, child: _head('CEO Approver')),
+                    Expanded(flex: 14, child: _head('Order Type')),
+                    Expanded(flex: 22, child: _head('Distributor')),
+                    Expanded(flex: 14, child: _head('Order Date')),
+                    Expanded(flex: 12, child: _head('Delivery Status')),
+                    Expanded(flex: 12, child: _head('Delivery Date')),
+                    Expanded(flex: 10, child: _head('Grand Total')),
                   ],
                 ),
+              ),
+              // --- header values ---
+              Row(
+                children: [
+                  Expanded(
+                    flex: 16,
+                    child: Text(
+                      h.orderID,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 14,
+                    child: _canEditStatus
+                        ? _InlineStatusEditor(
+                            initial: h.orderConfirmation,
+                            onSave: (v) async {
+                              final total =
+                                  widget.ordersRepo.grandTotalFromEntryMP(h);
+                              if (!_canApproveStage(
+                                v,
+                                total,
+                                h.orderConfirmation,
+                              )) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'You do not have approval rights for this stage/amount or previous stage is pending.',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              final approverId =
+                                  v == 'Cancelled' ? '' : _currentUserId;
+                              await widget.ordersRepo.updateConfirmation(
+                                widget.customerCode,
+                                h.orderID,
+                                v,
+                                approverId: approverId,
+                              );
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Status updated to $v'),
+                                ),
+                              );
+                            },
+                          )
+                        : Text(h.orderConfirmation),
+                  ),
+                  Expanded(flex: 12, child: Text(_name(h.amApproverID))),
+                  Expanded(
+                    flex: 12,
+                    child: Text(_gmLabel(_name(h.gmApproverID), total)),
+                  ),
+                  Expanded(
+                    flex: 12,
+                    child: Text(_ceoLabel(_name(h.ceoApproverID), total)),
+                  ),
+                  Expanded(flex: 14, child: Text(h.orderType)),
+                  Expanded(
+                    flex: 22,
+                    child: Text(_distName(h.distributorID)),
+                  ),
+                  Expanded(flex: 14, child: Text(_fmtDate(h.orderDate))),
+                  Expanded(
+                    flex: 12,
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: (h.deliveryStatus == 'Delivered')
+                            ? 'Delivered'
+                            : 'Undelivered',
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Undelivered',
+                            child: Text('Undelivered'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Delivered',
+                            child: Text('Delivered'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v == null) return;
+                          _updateDeliveryStatus(h.orderID, v);
+                        },
+                      ),
+                    ),
+                  ),
+                  Expanded(flex: 12, child: Text(_fmtDeliveryDate(h.deliveryDate))),
+                  Expanded(
+                    flex: 10,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        total.toStringAsFixed(2),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
 
-                const SizedBox(height: 8),
-                const Divider(height: 1),
+              const SizedBox(height: 8),
+              const Divider(height: 1),
 
-                // --- products mini table ---
-                _miniHeader(),
-                const Divider(height: 1),
-                ...widget.ordersRepo.linesFromEntryMP(h).map(_miniRow),
-              ],
-            ),
+              // --- products mini table ---
+              _miniHeader(),
+              const Divider(height: 1),
+              ...widget.ordersRepo.linesFromEntryMP(h).map(_miniRow),
+            ],
           ),
+        ),
+      );
+    }
+
+    _scheduleJump();
+
+    return Column(
+      children: [
+        ...children,
       ],
     );
   }

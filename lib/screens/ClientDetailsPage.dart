@@ -17,7 +17,12 @@ import '../app_session.dart';
 
 class ClientDetailsPage extends StatefulWidget {
   final CustomerEntry client; // carries region/area/subarea IDs + customerCode
-  const ClientDetailsPage({Key? key, required this.client}) : super(key: key);
+  final String? initialOrderId;
+  const ClientDetailsPage({
+    Key? key,
+    required this.client,
+    this.initialOrderId,
+  }) : super(key: key);
 
   @override
   State<ClientDetailsPage> createState() => _ClientDetailsPageState();
@@ -755,7 +760,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
               child: TextButton.icon(
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.arrow_back),
-                label: const Text('Back to Summary'),
+                label: const Text('Back'),
               ),
             ),
             Expanded(
@@ -1083,6 +1088,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                               ordersRepo: _ordersRepo,
                               customerCode: code,
                               userNameById: _userNameById,
+                              initialOrderId: widget.initialOrderId,
                             ),
                           ),
                         ],

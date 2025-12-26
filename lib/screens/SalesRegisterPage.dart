@@ -8,16 +8,19 @@ import 'dart:html' as html;
 
 import '../CommonHeader.dart';
 import '../CommonFooter.dart';
+import 'ClientDetailsPage.dart';
 import '../../dataLayer/customers_repository.dart';
 import '../../dataLayer/areas_repository.dart';
 import '../../dataLayer/subareas_repository.dart';
 import '../app_session.dart';
 
 enum _DateFilterType { all, day, month, year, range }
+enum _SortType { orderDateDesc, delayDesc }
 
 class _SalesRegisterRow {
   final String orderNo;
   final DateTime? orderDate;
+  final String orderConfirmation;
   final String category;
   final String city;
   final String destination;
@@ -45,10 +48,14 @@ class _SalesRegisterRow {
   final String amApproverName;
   final String gmApproverName;
   final String ceoApproverName;
+  final String deliveryStatus;
+  final DateTime? deliveryDate;
+  final DateTime? finalApprovalDate;
 
   const _SalesRegisterRow({
     required this.orderNo,
     required this.orderDate,
+    required this.orderConfirmation,
     required this.category,
     required this.city,
     required this.destination,
@@ -76,6 +83,9 @@ class _SalesRegisterRow {
     required this.amApproverName,
     required this.gmApproverName,
     required this.ceoApproverName,
+    required this.deliveryStatus,
+    required this.deliveryDate,
+    required this.finalApprovalDate,
   });
 }
 
@@ -125,6 +135,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
   DateTime? _selectedYear;
   DateTime? _rangeStart;
   DateTime? _rangeEnd;
+  _SortType _sortType = _SortType.orderDateDesc;
+  bool _undeliveredOnly = false;
 
   @override
   void initState() {
@@ -260,6 +272,34 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       return pct.isFinite ? '${pct.toStringAsFixed(2)}%' : '';
     }
 
+    DateTime? _dateFromMs(dynamic v) {
+      final ms = _i(v);
+      return ms > 0 ? DateTime.fromMillisecondsSinceEpoch(ms) : null;
+    }
+
+    String _normDeliveryStatus(String v) {
+      final t = v.trim();
+      if (t.isEmpty) return 'Undelivered';
+      final lower = t.toLowerCase();
+      if (lower == 'undelivered') return 'Undelivered';
+      if (lower == 'delivered') return 'Delivered';
+      return t;
+    }
+
+    DateTime? _finalApprovalDate(
+      String status,
+      DateTime? am,
+      DateTime? gm,
+      DateTime? ceo,
+      DateTime? fallback,
+    ) {
+      final s = status.toLowerCase();
+      if (s == 'ceo confirmed') return ceo ?? gm ?? am ?? fallback;
+      if (s == 'gm confirmed') return gm ?? am ?? fallback;
+      if (s == 'am confirmed') return am ?? fallback;
+      return null;
+    }
+
     raw.forEach((customerCode, ordersValue) {
       if (ordersValue is! Map) return;
       ordersValue.forEach((orderId, orderVal) {
@@ -270,10 +310,24 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
 
         final orderDate = _i(orderVal['orderDate']);
         final dt = orderDate > 0 ? DateTime.fromMillisecondsSinceEpoch(orderDate) : null;
+        final orderConfirmation = (orderVal['orderConfirmation'] ?? '').toString();
         final orderGrandTotal = _d(orderVal['grandTotal']);
         final amApproverId = (orderVal['amApproverID'] ?? '').toString();
         final gmApproverId = (orderVal['gmApproverID'] ?? '').toString();
         final ceoApproverId = (orderVal['ceoApproverID'] ?? '').toString();
+        final amApprovalDate = _dateFromMs(orderVal['amApprovalDate']);
+        final gmApprovalDate = _dateFromMs(orderVal['gmApprovalDate']);
+        final ceoApprovalDate = _dateFromMs(orderVal['ceoApprovalDate']);
+        final finalApprovalDate = _finalApprovalDate(
+          orderConfirmation,
+          amApprovalDate,
+          gmApprovalDate,
+          ceoApprovalDate,
+          dt,
+        );
+        final deliveryStatus =
+            _normDeliveryStatus((orderVal['deliveryStatus'] ?? '').toString());
+        final deliveryDate = _dateFromMs(orderVal['deliveryDate']);
         final salesPersonId = (orderVal['salesPersonID'] ?? '').toString();
         final orderType = (orderVal['orderType'] ?? '').toString();
         final amApproverName = _userNameById[amApproverId] ?? amApproverId;
@@ -336,6 +390,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
             _SalesRegisterRow(
               orderNo: (orderVal['orderID'] ?? orderId).toString(),
               orderDate: dt,
+              orderConfirmation: orderConfirmation,
               category: customer?.category ?? '',
               city: areaName,
               destination: subName,
@@ -363,6 +418,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
               amApproverName: amApproverName,
               gmApproverName: gmApproverName,
               ceoApproverName: ceoApproverName,
+              deliveryStatus: deliveryStatus,
+              deliveryDate: deliveryDate,
+              finalApprovalDate: finalApprovalDate,
             ),
           );
         }
@@ -410,10 +468,13 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
   }
 
   List<_SalesRegisterRow> get _filteredRows {
-    return _allRows.where((r) {
+    final filtered = _allRows.where((r) {
       final dt = r.orderDate;
       if (dt == null) return false;
       if (_allowedCustomerCodes.isNotEmpty && !_allowedCustomerCodes.contains(r.customerCode)) {
+        return false;
+      }
+      if (_undeliveredOnly && r.deliveryStatus != 'Undelivered') {
         return false;
       }
       switch (_filterType) {
@@ -437,6 +498,28 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
           return !dt.isBefore(start) && !dt.isAfter(end);
       }
     }).toList();
+
+    int delayDays(_SalesRegisterRow r) {
+      if (r.deliveryStatus != 'Undelivered') return -1;
+      final finalDate = r.finalApprovalDate;
+      if (finalDate == null) return -1;
+      final now = DateTime.now();
+      return now.difference(finalDate).inDays;
+    }
+
+    filtered.sort((a, b) {
+      if (_sortType == _SortType.delayDesc) {
+        final cmp = delayDays(b).compareTo(delayDays(a));
+        if (cmp != 0) return cmp;
+      }
+      final ad = a.orderDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bd = b.orderDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final cmpDate = bd.compareTo(ad);
+      if (cmpDate != 0) return cmpDate;
+      return a.orderNo.compareTo(b.orderNo);
+    });
+
+    return filtered;
   }
 
   Future<void> _pickDate(void Function(DateTime) onPick, {DateTime? initial}) async {
@@ -452,6 +535,111 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     if (picked != null) {
       onPick(picked);
     }
+  }
+
+  String _fmtShortDate(DateTime? d) {
+    if (d == null) return '';
+    return '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
+  }
+
+  Color _deliveryIndicatorColor(_SalesRegisterRow r) {
+    if (r.deliveryStatus == 'Delivered') return Colors.green;
+    if (r.deliveryStatus == 'Undelivered' && r.finalApprovalDate != null) {
+      final days = DateTime.now().difference(r.finalApprovalDate!).inDays;
+      return days < 21 ? Colors.amber : Colors.red;
+    }
+    return Colors.grey;
+  }
+
+  Future<void> _updateDelivery(
+    _SalesRegisterRow r,
+    String status, {
+    DateTime? deliveryDate,
+  }) async {
+    final normalized = status.toLowerCase() == 'delivered' ? 'Delivered' : 'Undelivered';
+    final effectiveDate =
+        normalized == 'Delivered' ? (deliveryDate ?? DateTime.now()) : null;
+    await _db.ref('Orders/${r.customerCode}/${r.orderNo}').update({
+      'deliveryStatus': normalized,
+      'deliveryDate': effectiveDate?.millisecondsSinceEpoch ?? 0,
+    });
+  }
+
+  bool _gmNeeded(double total) => total > 10000;
+  bool _ceoNeeded(double total) => total >= 20001;
+
+  String _gmLabel(String name, double total) {
+    if (!_gmNeeded(total)) return 'N/A';
+    return name.isEmpty ? 'Needed' : name;
+  }
+
+  String _ceoLabel(String name, double total) {
+    if (!_ceoNeeded(total)) return 'N/A';
+    return name.isEmpty ? 'Needed' : name;
+  }
+
+  void _openOrder(_SalesRegisterRow r) {
+    final customer = _customerByCode[r.customerCode];
+    if (customer == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Customer not found for this order')),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ClientDetailsPage(
+          client: customer,
+          initialOrderId: r.orderNo,
+        ),
+      ),
+    );
+  }
+
+  Widget _deliveryStatusCell(_SalesRegisterRow r) {
+    const statuses = ['Undelivered', 'Delivered'];
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: _deliveryIndicatorColor(r),
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: statuses.contains(r.deliveryStatus) ? r.deliveryStatus : 'Undelivered',
+            items: statuses
+                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                .toList(),
+            onChanged: (v) {
+              if (v == null) return;
+              _updateDelivery(r, v, deliveryDate: r.deliveryDate);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _deliveryDateCell(_SalesRegisterRow r) {
+    final label = _fmtShortDate(r.deliveryDate);
+    return TextButton(
+      onPressed: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: r.deliveryDate ?? DateTime.now(),
+          firstDate: DateTime(DateTime.now().year - 3),
+          lastDate: DateTime(DateTime.now().year + 2, 12, 31),
+        );
+        if (picked == null) return;
+        await _updateDelivery(r, 'Delivered', deliveryDate: picked);
+      },
+      child: Text(label.isEmpty ? 'Pick date' : label),
+    );
   }
 
   Widget _dateFilterControls() {
@@ -517,6 +705,30 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
                   child: Text(_rangeEnd == null ? 'End date' : 'To: ${fmt(_rangeEnd)}'),
                 ),
               ],
+              const SizedBox(width: 8),
+              const Text('Sort:'),
+              DropdownButton<_SortType>(
+                value: _sortType,
+                items: const [
+                  DropdownMenuItem(
+                    value: _SortType.orderDateDesc,
+                    child: Text('Order time (newest)'),
+                  ),
+                  DropdownMenuItem(
+                    value: _SortType.delayDesc,
+                    child: Text('Delayed delivery'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  setState(() => _sortType = v);
+                },
+              ),
+              FilterChip(
+                label: const Text('Undelivered only'),
+                selected: _undeliveredOnly,
+                onSelected: (v) => setState(() => _undeliveredOnly = v),
+              ),
               TextButton(
                 onPressed: () {
                   setState(() {
@@ -526,6 +738,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
                     _rangeStart = null;
                     _rangeEnd = null;
                     _filterType = _DateFilterType.all;
+                    _sortType = _SortType.orderDateDesc;
+                    _undeliveredOnly = false;
                   });
                 },
                 child: const Text('Clear'),
@@ -573,14 +787,71 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       'AM Approver Name',
       'GM Approver Name',
       'CEO Approver Name',
+      'Date Confirmed',
+      'Delivery Status',
+      'Date of Delivery',
     ];
 
-    String fmtDate(DateTime? d) {
-      if (d == null) return '';
-      return '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
-    }
+    String fmtDate(DateTime? d) => _fmtShortDate(d);
 
     final rows = _filteredRows;
+    final dataRows = <DataRow>[];
+    String? lastOrderNo;
+    var useAlt = false;
+    for (final r in rows) {
+      if (lastOrderNo != null && lastOrderNo != r.orderNo) {
+        useAlt = !useAlt;
+      }
+      lastOrderNo = r.orderNo;
+      dataRows.add(
+        DataRow(
+          color: useAlt ? MaterialStateProperty.all(Colors.grey.shade100) : null,
+          cells: [
+            DataCell(Text(r.orderType)),
+            DataCell(
+              Text(
+                r.orderNo,
+                style: const TextStyle(
+                  color: Colors.blue,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+              onTap: () => _openOrder(r),
+            ),
+            DataCell(Text(fmtDate(r.orderDate))),
+            DataCell(Text(r.category)),
+            DataCell(Text(r.salesPersonName)),
+            DataCell(Text(r.city)),
+            DataCell(Text(r.destination)),
+            DataCell(Text(r.customerCode)),
+            DataCell(Text(r.outletName)),
+            DataCell(Text(r.address)),
+            DataCell(Text(r.contactPerson)),
+            DataCell(Text(r.contactMobile)),
+            DataCell(Text(r.gstin)),
+            DataCell(Text(r.docName)),
+            DataCell(Text(r.docContact)),
+            DataCell(Text(r.productCode)),
+            DataCell(Text(r.productName)),
+            DataCell(Text(r.billingType)),
+            DataCell(Text(r.billingPercent)),
+            DataCell(Text('${r.billedQty}')),
+            DataCell(Text('${r.freeQty}')),
+            DataCell(Text(r.rate.toStringAsFixed(2))),
+            DataCell(Text(r.totalAmount.toStringAsFixed(2))),
+            DataCell(Text(r.cdAmount.toStringAsFixed(2))),
+            DataCell(Text(r.totalBillingAmount.toStringAsFixed(2))),
+            DataCell(Text(r.grandTotal.toStringAsFixed(2))),
+            DataCell(Text(r.amApproverName)),
+            DataCell(Text(_gmLabel(r.gmApproverName, r.grandTotal))),
+            DataCell(Text(_ceoLabel(r.ceoApproverName, r.grandTotal))),
+            DataCell(Text(fmtDate(r.finalApprovalDate))),
+            DataCell(_deliveryStatusCell(r)),
+            DataCell(_deliveryDateCell(r)),
+          ],
+        ),
+      );
+    }
     final hCtrl = ScrollController();
     final vCtrl = ScrollController();
 
@@ -610,43 +881,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
                     child: DataTable(
                       headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
                       columns: headers.map((h) => DataColumn(label: Text(h, style: const TextStyle(fontSize: 12)))).toList(),
-                      rows: rows
-                          .map(
-                            (r) => DataRow(
-                              cells: [
-                                DataCell(Text(r.orderType)),
-                                DataCell(Text(r.orderNo)),
-                                DataCell(Text(fmtDate(r.orderDate))),
-                                DataCell(Text(r.category)),
-                                DataCell(Text(r.salesPersonName)),
-                                DataCell(Text(r.city)),
-                                DataCell(Text(r.destination)),
-                                DataCell(Text(r.customerCode)),
-                                DataCell(Text(r.outletName)),
-                                DataCell(Text(r.address)),
-                                DataCell(Text(r.contactPerson)),
-                                DataCell(Text(r.contactMobile)),
-                                DataCell(Text(r.gstin)),
-                                DataCell(Text(r.docName)),
-                                DataCell(Text(r.docContact)),
-                                DataCell(Text(r.productCode)),
-                                DataCell(Text(r.productName)),
-                                DataCell(Text(r.billingType)),
-                                DataCell(Text(r.billingPercent)),
-                                DataCell(Text('${r.billedQty}')),
-                                DataCell(Text('${r.freeQty}')),
-                                DataCell(Text(r.rate.toStringAsFixed(2))),
-                                DataCell(Text(r.totalAmount.toStringAsFixed(2))),
-                      DataCell(Text(r.cdAmount.toStringAsFixed(2))),
-                      DataCell(Text(r.totalBillingAmount.toStringAsFixed(2))),
-                      DataCell(Text(r.grandTotal.toStringAsFixed(2))),
-                      DataCell(Text(r.amApproverName)),
-                      DataCell(Text(r.gmApproverName)),
-                      DataCell(Text(r.ceoApproverName)),
-                    ],
-                  ),
-                )
-                .toList(),
+                      rows: dataRows,
                     ),
                   ),
                 ),
@@ -719,6 +954,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       'AM Approver Name',
       'GM Approver Name',
       'CEO Approver Name',
+      'Date Confirmed',
+      'Delivery Status',
+      'Date of Delivery',
     ];
 
     String fmtDate(DateTime? d) {
@@ -759,8 +997,11 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         r.totalBillingAmount.toStringAsFixed(2),
         r.grandTotal.toStringAsFixed(2),
         r.amApproverName,
-        r.gmApproverName,
-        r.ceoApproverName,
+        _gmLabel(r.gmApproverName, r.grandTotal),
+        _ceoLabel(r.ceoApproverName, r.grandTotal),
+        fmtDate(r.finalApprovalDate),
+        r.deliveryStatus,
+        fmtDate(r.deliveryDate),
       ];
       buffer.writeln(data.map(esc).join(','));
     }

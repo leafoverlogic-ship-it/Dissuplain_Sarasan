@@ -150,6 +150,11 @@ class OrderEntry {
   final String amApproverID;
   final String gmApproverID;
   final String ceoApproverID;
+  final int amApprovalDate;
+  final int gmApprovalDate;
+  final int ceoApprovalDate;
+  final String deliveryStatus;
+  final int deliveryDate;
   final Map<String, dynamic>? productsDetail; // MP-only
   final double? grandTotal; // MP-only (header sum)
 
@@ -171,6 +176,11 @@ class OrderEntry {
     required this.amApproverID,
     required this.gmApproverID,
     required this.ceoApproverID,
+    required this.amApprovalDate,
+    required this.gmApprovalDate,
+    required this.ceoApprovalDate,
+    required this.deliveryStatus,
+    required this.deliveryDate,
     this.productsDetail,
     this.grandTotal,
   });
@@ -196,6 +206,11 @@ class OrderEntry {
       amApproverID: (m['amApproverID'] ?? '').toString(),
       gmApproverID: (m['gmApproverID'] ?? '').toString(),
       ceoApproverID: (m['ceoApproverID'] ?? '').toString(),
+      amApprovalDate: _i(m['amApprovalDate']),
+      gmApprovalDate: _i(m['gmApprovalDate']),
+      ceoApprovalDate: _i(m['ceoApprovalDate']),
+      deliveryStatus: (m['deliveryStatus'] ?? 'Undelivered').toString(),
+      deliveryDate: _i(m['deliveryDate']),
       productsDetail: (m['productsDetail'] is Map)
           ? Map<String, dynamic>.from(m['productsDetail'] as Map)
           : null,
@@ -318,6 +333,11 @@ class OrdersRepository {
       'totalAmount': totalAmount,
       'distributorID': distributorID,
       'orderConfirmation': 'New',
+      'amApprovalDate': 0,
+      'gmApprovalDate': 0,
+      'ceoApprovalDate': 0,
+      'deliveryStatus': 'Undelivered',
+      'deliveryDate': 0,
     });
   }
 
@@ -348,6 +368,11 @@ class OrdersRepository {
       'amApproverID': amApproverID,
       'gmApproverID': gmApproverID,
       'ceoApproverID': ceoApproverID,
+      'amApprovalDate': 0,
+      'gmApprovalDate': 0,
+      'ceoApprovalDate': 0,
+      'deliveryStatus': 'Undelivered',
+      'deliveryDate': 0,
     });
   }
 
@@ -358,6 +383,7 @@ class OrdersRepository {
     String? approverId,
   }) async {
     final data = <String, Object?>{'orderConfirmation': newStatus};
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
 
     final id = approverId?.trim() ?? '';
     switch (newStatus) {
@@ -365,12 +391,17 @@ class OrdersRepository {
         data['amApproverID'] = id;
         data['gmApproverID'] = '';
         data['ceoApproverID'] = '';
+        data['amApprovalDate'] = nowMs;
+        data['gmApprovalDate'] = 0;
+        data['ceoApprovalDate'] = 0;
         break;
       case 'GM Confirmed':
         if (id.isNotEmpty) data['gmApproverID'] = id;
+        data['gmApprovalDate'] = nowMs;
         break;
       case 'CEO Confirmed':
         if (id.isNotEmpty) data['ceoApproverID'] = id;
+        data['ceoApprovalDate'] = nowMs;
         break;
       case 'Cancelled':
       default:
