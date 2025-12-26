@@ -43,6 +43,8 @@ class _SalesRegisterRow {
   final String orderType;
   final String salesPersonName;
   final String amApproverName;
+  final String gmApproverName;
+  final String ceoApproverName;
 
   const _SalesRegisterRow({
     required this.orderNo,
@@ -72,6 +74,8 @@ class _SalesRegisterRow {
     required this.orderType,
     required this.salesPersonName,
     required this.amApproverName,
+    required this.gmApproverName,
+    required this.ceoApproverName,
   });
 }
 
@@ -268,9 +272,13 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         final dt = orderDate > 0 ? DateTime.fromMillisecondsSinceEpoch(orderDate) : null;
         final orderGrandTotal = _d(orderVal['grandTotal']);
         final amApproverId = (orderVal['amApproverID'] ?? '').toString();
+        final gmApproverId = (orderVal['gmApproverID'] ?? '').toString();
+        final ceoApproverId = (orderVal['ceoApproverID'] ?? '').toString();
         final salesPersonId = (orderVal['salesPersonID'] ?? '').toString();
         final orderType = (orderVal['orderType'] ?? '').toString();
         final amApproverName = _userNameById[amApproverId] ?? amApproverId;
+        final gmApproverName = _userNameById[gmApproverId] ?? gmApproverId;
+        final ceoApproverName = _userNameById[ceoApproverId] ?? ceoApproverId;
         final salesPersonName = _userNameById[salesPersonId] ?? salesPersonId;
 
         final customer = _customerByCode[(orderVal['customerCode'] ?? customerCode).toString()];
@@ -353,6 +361,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
               orderType: orderType,
               salesPersonName: salesPersonName,
               amApproverName: amApproverName,
+              gmApproverName: gmApproverName,
+              ceoApproverName: ceoApproverName,
             ),
           );
         }
@@ -561,6 +571,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       'Total Billing Amount',
       'Grand Total (Order)',
       'AM Approver Name',
+      'GM Approver Name',
+      'CEO Approver Name',
     ];
 
     String fmtDate(DateTime? d) {
@@ -625,14 +637,16 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
                                 DataCell(Text('${r.freeQty}')),
                                 DataCell(Text(r.rate.toStringAsFixed(2))),
                                 DataCell(Text(r.totalAmount.toStringAsFixed(2))),
-                                DataCell(Text(r.cdAmount.toStringAsFixed(2))),
-                                DataCell(Text(r.totalBillingAmount.toStringAsFixed(2))),
-                                DataCell(Text(r.grandTotal.toStringAsFixed(2))),
-                                DataCell(Text(r.amApproverName)),
-                              ],
-                            ),
-                          )
-                          .toList(),
+                      DataCell(Text(r.cdAmount.toStringAsFixed(2))),
+                      DataCell(Text(r.totalBillingAmount.toStringAsFixed(2))),
+                      DataCell(Text(r.grandTotal.toStringAsFixed(2))),
+                      DataCell(Text(r.amApproverName)),
+                      DataCell(Text(r.gmApproverName)),
+                      DataCell(Text(r.ceoApproverName)),
+                    ],
+                  ),
+                )
+                .toList(),
                     ),
                   ),
                 ),
@@ -703,6 +717,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       'Total Billing Amount',
       'Grand Total (Order)',
       'AM Approver Name',
+      'GM Approver Name',
+      'CEO Approver Name',
     ];
 
     String fmtDate(DateTime? d) {
@@ -743,6 +759,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         r.totalBillingAmount.toStringAsFixed(2),
         r.grandTotal.toStringAsFixed(2),
         r.amApproverName,
+        r.gmApproverName,
+        r.ceoApproverName,
       ];
       buffer.writeln(data.map(esc).join(','));
     }

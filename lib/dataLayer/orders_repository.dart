@@ -147,6 +147,9 @@ class OrderEntry {
   final double totalAmount;
   final String distributorID;
   final String orderConfirmation;
+  final String amApproverID;
+  final String gmApproverID;
+  final String ceoApproverID;
   final Map<String, dynamic>? productsDetail; // MP-only
   final double? grandTotal; // MP-only (header sum)
 
@@ -165,6 +168,9 @@ class OrderEntry {
     required this.totalAmount,
     required this.distributorID,
     required this.orderConfirmation,
+    required this.amApproverID,
+    required this.gmApproverID,
+    required this.ceoApproverID,
     this.productsDetail,
     this.grandTotal,
   });
@@ -187,6 +193,9 @@ class OrderEntry {
       totalAmount: _d(m['totalAmount']),
       distributorID: (m['distributorID'] ?? '').toString(),
       orderConfirmation: (m['orderConfirmation'] ?? 'New').toString(),
+      amApproverID: (m['amApproverID'] ?? '').toString(),
+      gmApproverID: (m['gmApproverID'] ?? '').toString(),
+      ceoApproverID: (m['ceoApproverID'] ?? '').toString(),
       productsDetail: (m['productsDetail'] is Map)
           ? Map<String, dynamic>.from(m['productsDetail'] as Map)
           : null,
@@ -277,6 +286,8 @@ class OrdersRepository {
     required String billingType,
     required String salesPersonID,
     String amApproverID = '',
+    String gmApproverID = '',
+    String ceoApproverID = '',
     required String productCode,
     required String productName,
     required double productMRP,
@@ -296,6 +307,8 @@ class OrdersRepository {
       'billingType': billingType,
       'salesPersonID': salesPersonID,
       'amApproverID': amApproverID,
+      'gmApproverID': gmApproverID,
+      'ceoApproverID': ceoApproverID,
       'productCode': productCode,
       'productName': productName,
       'productMRP': productMRP,
@@ -314,6 +327,8 @@ class OrdersRepository {
     required String distributorID,
     required String salesPersonID,
     String amApproverID = '',
+    String gmApproverID = '',
+    String ceoApproverID = '',
     required double grandTotal,
     required Map<String, Map<String, dynamic>> productsDetail,
   }) async {
@@ -331,6 +346,8 @@ class OrdersRepository {
       'productsDetail': productsDetail, // { productCode: {...fields...}, ... }
       'salesPersonID': salesPersonID,
       'amApproverID': amApproverID,
+      'gmApproverID': gmApproverID,
+      'ceoApproverID': ceoApproverID,
     });
   }
 
@@ -342,11 +359,22 @@ class OrdersRepository {
   }) async {
     final data = <String, Object?>{'orderConfirmation': newStatus};
 
-    // Keep AM approver blank until a confirmation action supplies it
-    if (newStatus == 'Confirmed' && approverId != null && approverId.trim().isNotEmpty) {
-      data['amApproverID'] = approverId.trim();
-    } else {
-      data['amApproverID'] = '';
+    final id = approverId?.trim() ?? '';
+    switch (newStatus) {
+      case 'AM Confirmed':
+        data['amApproverID'] = id;
+        data['gmApproverID'] = '';
+        data['ceoApproverID'] = '';
+        break;
+      case 'GM Confirmed':
+        if (id.isNotEmpty) data['gmApproverID'] = id;
+        break;
+      case 'CEO Confirmed':
+        if (id.isNotEmpty) data['ceoApproverID'] = id;
+        break;
+      case 'Cancelled':
+      default:
+        break;
     }
     await _ordersRoot.child(customerCode).child(orderID).update(data);
   }

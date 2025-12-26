@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:dissuplain_app_web_mobile/dataLayer/orders_repository.dart';
 import 'package:dissuplain_app_web_mobile/app_session.dart';
 
-class OrdersSection extends StatefulWidget {
+class OrderSectionNewOrder extends StatefulWidget {
   final OrdersRepository ordersRepo;
   final String customerCode;
   final String customerCategory;
-  const OrdersSection({
+  const OrderSectionNewOrder({
     super.key,
     required this.ordersRepo,
     required this.customerCode,
@@ -14,10 +14,10 @@ class OrdersSection extends StatefulWidget {
   });
 
   @override
-  State<OrdersSection> createState() => _OrdersSectionState();
+  State<OrderSectionNewOrder> createState() => _OrderSectionNewOrderState();
 }
 
-class _OrdersSectionState extends State<OrdersSection> {
+class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
   final _orderTypes = const ['1st Order', 'Repeat Order'];
   final Map<String, bool> _mpBillingTypeWithScheme = {};
   String _mpBillingTypeString(bool v) => v ? 'With Scheme' : 'NET';

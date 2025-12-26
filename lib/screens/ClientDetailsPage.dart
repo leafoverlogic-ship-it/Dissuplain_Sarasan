@@ -8,7 +8,7 @@ import '../../dataLayer/regions_repository.dart';
 import '../../dataLayer/areas_repository.dart';
 import '../../dataLayer/subareas_repository.dart';
 import '../../dataLayer/orders_repository.dart';
-import '../../businessLogic/OrdersSection.dart';
+import '../../businessLogic/OrderSection_NewOrder.dart';
 import '../../businessLogic/OrderSection_ExistingOrder.dart';
 
 import '../CommonHeader.dart';
@@ -915,9 +915,9 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                           rows: [
                             _pair('customerCode', _s(m['customerCode'])),
                             _pair('Sales_Person', _displaySalesPerson(m)),
-                            _pair('regionName', regionName),
-                            _pair('areaName', areaName),
-                            _pair('subareaName', subName),
+                            _pair('Region Name', regionName),
+                            _pair('Area Name', areaName),
+                            _pair('Subarea Name', subName),
                             _pair('Category', _s(m['Category'])),
                             _pair(
                               'Type_of_Institution',
@@ -1066,7 +1066,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                     scrollDirection: Axis.horizontal,
                                     child: SizedBox(
                                       width: useWidth, // allow extra width and horizontal scroll
-                                      child: OrdersSection(
+                                      child: OrderSectionNewOrder(
                                         ordersRepo: _ordersRepo,
                                         customerCode: code, // or whatever you use
                                         customerCategory: widget.client.category ?? '',
@@ -1082,6 +1082,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             child: OrderSectionExistingOrder(
                               ordersRepo: _ordersRepo,
                               customerCode: code,
+                              userNameById: _userNameById,
                             ),
                           ),
                         ],

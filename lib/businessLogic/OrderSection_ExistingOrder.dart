@@ -5,10 +5,12 @@ import 'package:dissuplain_app_web_mobile/app_session.dart';
 class OrderSectionExistingOrder extends StatefulWidget {
   final OrdersRepository ordersRepo;
   final String customerCode;
+  final Map<String, String>? userNameById; // optional map for approver names
   const OrderSectionExistingOrder({
     super.key,
     required this.ordersRepo,
     required this.customerCode,
+    this.userNameById,
   });
 
   @override
@@ -17,7 +19,15 @@ class OrderSectionExistingOrder extends StatefulWidget {
 }
 
 class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
-  final _statusFilters = const ['All', 'New', 'Confirmed', 'Cancelled'];
+  final _statusFilters = const [
+    'All',
+    'New',
+    'Confirmed',
+    'Cancelled',
+    'AM Confirmed',
+    'GM Confirmed',
+    'CEO Confirmed',
+  ];
   final ScrollController _hCtrl = ScrollController();
 
   String _filter = 'All';
@@ -30,6 +40,29 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
     final n = int.tryParse(_roleId);
     if (n == null) return false;
     return n >= 2; // Area Manager or above
+  }
+
+  bool _canApproveStage(
+    String targetStatus,
+    double total,
+    String currentStatus,
+  ) {
+    final role = int.tryParse(_roleId) ?? 0;
+    if (targetStatus == 'Cancelled') return true;
+    switch (targetStatus) {
+      case 'AM Confirmed':
+        return role >= 2;
+      case 'GM Confirmed':
+        if (total <= 10000) return false; // GM not needed below 10k
+        if (currentStatus != 'AM Confirmed') return false; // needs AM first
+        return role >= 5; // GM or higher
+      case 'CEO Confirmed':
+        if (total < 20001) return false; // CEO only 20001+
+        if (currentStatus != 'GM Confirmed') return false; // needs GM first
+        return role == 7;
+      default:
+        return false;
+    }
   }
 
   @override
@@ -99,7 +132,13 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
     );
   }
 
-  Widget _buildOrdersDisplayMP(List<OrderEntry> src) {
+    Widget _buildOrdersDisplayMP(List<OrderEntry> src) {
+    String _name(String id) {
+      if (id.isEmpty) return '';
+      final map = widget.userNameById;
+      if (map == null || map.isEmpty) return id;
+      return map[id] ?? id;
+    }
     String _fmtDate(int ms) {
       final dt = DateTime.fromMillisecondsSinceEpoch(ms);
       final d = dt.day.toString().padLeft(2, '0');
@@ -191,6 +230,27 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
+              Expanded(
+                flex: 12,
+                child: Text(
+                  'AM Approver',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Expanded(
+                flex: 12,
+                child: Text(
+                  'GM Approver',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Expanded(
+                flex: 12,
+                child: Text(
+                  'CEO Approver',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
             ],
           ),
         );
@@ -246,6 +306,9 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                   textAlign: TextAlign.right,
                 ),
               ),
+              const Expanded(flex: 12, child: SizedBox.shrink()),
+              const Expanded(flex: 12, child: SizedBox.shrink()),
+              const Expanded(flex: 12, child: SizedBox.shrink()),
             ],
           ),
         );
@@ -269,6 +332,9 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                     children: [
                       Expanded(flex: 16, child: _head('Order ID')),
                       Expanded(flex: 14, child: _head('Confirmation')),
+                      Expanded(flex: 12, child: _head('AM Approver')),
+                      Expanded(flex: 12, child: _head('GM Approver')),
+                      Expanded(flex: 12, child: _head('CEO Approver')),
                       Expanded(flex: 14, child: _head('Order Type')),
                       Expanded(flex: 22, child: _head('Distributor')),
                       Expanded(flex: 14, child: _head('Order Date')),
@@ -289,16 +355,33 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                     Expanded(
                       flex: 14,
                       child: _canEditStatus
-                          ? _InlineStatusEditor(
-                              initial: h.orderConfirmation,
-                              onSave: (v) async {
-                                final approverId =
-                                    v == 'Confirmed' ? _currentUserId : '';
-                                await widget.ordersRepo.updateConfirmation(
-                                  widget.customerCode,
-                                  h.orderID,
-                                  v,
-                                  approverId: approverId,
+                            ? _InlineStatusEditor(
+                                initial: h.orderConfirmation,
+                                onSave: (v) async {
+                                  final total =
+                                      widget.ordersRepo.grandTotalFromEntryMP(h);
+                                  if (!_canApproveStage(
+                                    v,
+                                    total,
+                                    h.orderConfirmation,
+                                  )) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'You do not have approval rights for this stage/amount or previous stage is pending.',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  final approverId =
+                                      v == 'Cancelled' ? '' : _currentUserId;
+                                  await widget.ordersRepo.updateConfirmation(
+                                    widget.customerCode,
+                                    h.orderID,
+                                    v,
+                                    approverId: approverId,
                                 );
                                 if (!mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -310,6 +393,9 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                             )
                           : Text(h.orderConfirmation),
                     ),
+                    Expanded(flex: 12, child: Text(_name(h.amApproverID))),
+                    Expanded(flex: 12, child: Text(_name(h.gmApproverID))),
+                    Expanded(flex: 12, child: Text(_name(h.ceoApproverID))),
                     Expanded(flex: 14, child: Text(h.orderType)),
                     Expanded(
                       flex: 22,
@@ -360,12 +446,19 @@ class _InlineStatusEditor extends StatefulWidget {
 
 class _InlineStatusEditorState extends State<_InlineStatusEditor> {
   String? _v;
-  static const List<String> _options = ['', 'Confirmed', 'Cancelled'];
+  static const List<String> _options = [
+    'New',
+    'Cancelled',
+    'Confirmed', // legacy
+    'AM Confirmed',
+    'GM Confirmed',
+    'CEO Confirmed',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _v = _options.contains(widget.initial) ? widget.initial : '';
+    _v = _options.contains(widget.initial) ? widget.initial : 'New';
   }
 
   @override
@@ -381,10 +474,11 @@ class _InlineStatusEditorState extends State<_InlineStatusEditor> {
         ),
         IconButton(
           icon: const Icon(Icons.check, size: 18),
-          onPressed: _v == null
+          onPressed: (_v == null || _v == 'New')
               ? null
               : () async {
-                  await widget.onSave(_v!);
+                  final target = _v == 'Confirmed' ? 'AM Confirmed' : _v!;
+                  await widget.onSave(target);
                 },
         ),
         IconButton(
