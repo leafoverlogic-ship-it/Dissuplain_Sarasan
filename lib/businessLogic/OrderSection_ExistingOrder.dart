@@ -564,27 +564,39 @@ class _InlineStatusEditorState extends State<_InlineStatusEditor> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButton<String>(
           value: _v,
+          isDense: true,
           items: _options
               .map((v) => DropdownMenuItem(value: v, child: Text(v)))
               .toList(),
           onChanged: (v) => setState(() => _v = v),
         ),
-        IconButton(
-          icon: const Icon(Icons.check, size: 18),
-          onPressed: (_v == null || _v == 'New')
-              ? null
-              : () async {
-                  final target = _v == 'Confirmed' ? 'AM Confirmed' : _v!;
-                  await widget.onSave(target);
-                },
-        ),
-        IconButton(
-          icon: const Icon(Icons.close, size: 18),
-          onPressed: () => setState(() => _v = ''),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.check, size: 18),
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              onPressed: (_v == null || _v == 'New')
+                  ? null
+                  : () async {
+                      final target = _v == 'Confirmed' ? 'AM Confirmed' : _v!;
+                      await widget.onSave(target);
+                    },
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 18),
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              onPressed: () => setState(() => _v = ''),
+            ),
+          ],
         ),
       ],
     );
