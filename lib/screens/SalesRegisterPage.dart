@@ -16,6 +16,7 @@ import '../app_session.dart';
 
 enum _DateFilterType { all, day, month, year, range }
 enum _SortType { orderDateDesc, delayDesc }
+enum _ApprovalStage { am, gm, ceo }
 
 class _SalesRegisterRow {
   final String orderNo;
@@ -51,6 +52,7 @@ class _SalesRegisterRow {
   final String deliveryStatus;
   final DateTime? deliveryDate;
   final DateTime? finalApprovalDate;
+  final String orderNotes;
 
   const _SalesRegisterRow({
     required this.orderNo,
@@ -86,6 +88,7 @@ class _SalesRegisterRow {
     required this.deliveryStatus,
     required this.deliveryDate,
     required this.finalApprovalDate,
+    required this.orderNotes,
   });
 }
 
@@ -137,6 +140,63 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
   DateTime? _rangeEnd;
   _SortType _sortType = _SortType.orderDateDesc;
   bool _undeliveredOnly = false;
+  int get _currentRole {
+    final roleId = (widget.roleId ?? AppSession().roleId ?? '').trim();
+    return int.tryParse(roleId) ?? 0;
+  }
+  String get _currentUserId => (AppSession().salesPersonId ?? '').trim();
+  bool get _canAccessSalesRegister {
+    return _currentRole == 4 || _currentUserId == 'SS-1132';
+  }
+  String get _currentUserName {
+    final sessionName = (AppSession().salesPersonName ?? '').trim();
+    if (sessionName.isNotEmpty) return sessionName;
+    final id = _currentUserId;
+    return _userNameById[id] ?? id;
+  }
+
+  bool _canEditRate(_SalesRegisterRow r) {
+    return _canActOnOrder(r);
+  }
+
+  String _displayStatus(String raw, double total) {
+    final t = raw.trim();
+    if (t.isEmpty) return 'New';
+    final lower = t.toLowerCase();
+    if (lower == 'confirmed') return 'Confirmed';
+    if (lower == 'am confirmed') {
+      return _gmNeeded(total) ? 'Awaiting GM Approval' : 'Confirmed';
+    }
+    if (lower == 'gm confirmed') {
+      return _ceoNeeded(total) ? 'Awaiting CEO Approval' : 'Confirmed';
+    }
+    if (lower == 'ceo confirmed') return 'Confirmed';
+    if (lower == 'awaiting gm approval') {
+      return _gmNeeded(total) ? 'Awaiting GM Approval' : 'Confirmed';
+    }
+    if (lower == 'awaiting ceo approval') {
+      return _ceoNeeded(total) ? 'Awaiting CEO Approval' : 'Confirmed';
+    }
+    if (lower == 'am cancelled') return 'AM Cancelled';
+    if (lower == 'gm cancelled') return 'GM Cancelled';
+    if (lower == 'ceo cancelled') return 'CEO Cancelled';
+    if (lower == 'cancelled') return 'AM Cancelled';
+    if (lower == 'new') return 'New';
+    return t;
+  }
+
+  bool _canActOnOrder(_SalesRegisterRow r) {
+    if (_currentRole < 2) return false;
+    final status = _displayStatus(r.orderConfirmation, r.grandTotal);
+    if (status == 'New') return _currentRole >= 2;
+    if (status == 'Awaiting GM Approval') {
+      return _gmNeeded(r.grandTotal) && _currentRole >= 4;
+    }
+    if (status == 'Awaiting CEO Approval') {
+      return _ceoNeeded(r.grandTotal) && _currentRole >= 5;
+    }
+    return false;
+  }
 
   @override
   void initState() {
@@ -288,25 +348,41 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
 
     DateTime? _finalApprovalDate(
       String status,
+      double total,
       DateTime? am,
       DateTime? gm,
       DateTime? ceo,
       DateTime? fallback,
     ) {
-      final s = status.toLowerCase();
-      if (s == 'ceo confirmed') return ceo ?? gm ?? am ?? fallback;
-      if (s == 'gm confirmed') return gm ?? am ?? fallback;
-      if (s == 'am confirmed') return am ?? fallback;
+      final normalized = _displayStatus(status, total);
+      if (normalized == 'Confirmed') return ceo ?? gm ?? am ?? fallback;
       return null;
+    }
+
+    String _notesFromRaw(dynamic raw) {
+      if (raw == null) return '';
+      if (raw is String) return raw.trim();
+      if (raw is List) {
+        return raw
+            .map((e) => e?.toString().trim() ?? '')
+            .where((s) => s.isNotEmpty)
+            .join(' | ');
+      }
+      if (raw is Map) {
+        final entries = raw.entries.toList()
+          ..sort((a, b) => a.key.toString().compareTo(b.key.toString()));
+        return entries
+            .map((e) => e.value?.toString().trim() ?? '')
+            .where((s) => s.isNotEmpty)
+            .join(' | ');
+      }
+      return raw.toString();
     }
 
     raw.forEach((customerCode, ordersValue) {
       if (ordersValue is! Map) return;
       ordersValue.forEach((orderId, orderVal) {
         if (orderVal is! Map) return;
-
-        final status = (orderVal['orderConfirmation'] ?? '').toString().toLowerCase();
-        if (status == 'cancelled') return; // skip cancelled orders in register
 
         final orderDate = _i(orderVal['orderDate']);
         final dt = orderDate > 0 ? DateTime.fromMillisecondsSinceEpoch(orderDate) : null;
@@ -320,6 +396,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         final ceoApprovalDate = _dateFromMs(orderVal['ceoApprovalDate']);
         final finalApprovalDate = _finalApprovalDate(
           orderConfirmation,
+          orderGrandTotal,
           amApprovalDate,
           gmApprovalDate,
           ceoApprovalDate,
@@ -328,6 +405,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         final deliveryStatus =
             _normDeliveryStatus((orderVal['deliveryStatus'] ?? '').toString());
         final deliveryDate = _dateFromMs(orderVal['deliveryDate']);
+        final orderNotes = _notesFromRaw(orderVal['orderNotes']);
         final salesPersonId = (orderVal['salesPersonID'] ?? '').toString();
         final orderType = (orderVal['orderType'] ?? '').toString();
         final amApproverName = _userNameById[amApproverId] ?? amApproverId;
@@ -421,6 +499,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
               deliveryStatus: deliveryStatus,
               deliveryDate: deliveryDate,
               finalApprovalDate: finalApprovalDate,
+              orderNotes: orderNotes,
             ),
           );
         }
@@ -551,6 +630,152 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     return Colors.grey;
   }
 
+  Future<void> _showRateEditDialog(_SalesRegisterRow r) async {
+    if (!_canEditRate(r)) return;
+    final controller = TextEditingController(text: r.rate.toStringAsFixed(2));
+    String? error;
+    final newRate = await showDialog<double>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Update rate'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'New rate',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(error!, style: const TextStyle(color: Colors.red)),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final txt = controller.text.trim();
+                    final val = double.tryParse(txt);
+                    if (val == null || val <= 0) {
+                      setState(() => error = 'Enter a valid rate');
+                      return;
+                    }
+                    Navigator.of(context).pop(val);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (newRate == null) return;
+    await _updateRate(r, newRate);
+  }
+
+  Future<void> _updateRate(_SalesRegisterRow r, double newRate) async {
+    final orderRef = _db.ref('Orders/${r.customerCode}/${r.orderNo}');
+    final snap = await orderRef.get();
+    if (!snap.exists || snap.value is! Map) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Order not found for update')),
+      );
+      return;
+    }
+
+    final oldRate = r.rate;
+    final order = Map<String, dynamic>.from(snap.value as Map);
+    double _d(v) => v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0.0;
+    int _i(v) => v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
+
+    final rate = double.parse(newRate.toStringAsFixed(2));
+    final total = double.parse((rate * r.billedQty).toStringAsFixed(2));
+    final updates = <String, Object?>{};
+
+    final pdRaw = order['productsDetail'];
+    if (pdRaw is Map) {
+      final pd = Map<String, dynamic>.from(pdRaw as Map);
+      String? matchKey;
+      if (pd.containsKey(r.productCode)) {
+        matchKey = r.productCode;
+      } else {
+        for (final k in pd.keys) {
+          if (k.toString() == r.productCode) {
+            matchKey = k.toString();
+            break;
+          }
+        }
+      }
+      if (matchKey == null || pd[matchKey] is! Map) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Product not found for update')),
+        );
+        return;
+      }
+      final line = Map<String, dynamic>.from(pd[matchKey] as Map);
+      line['rate'] = rate;
+      line['totalAmount'] = total;
+      pd[matchKey] = line;
+
+      double grand = 0.0;
+      pd.forEach((_, v) {
+        if (v is! Map) return;
+        final m = Map<String, dynamic>.from(v as Map);
+        final lineTotal = _d(m['totalAmount']);
+        final cdApplied = _i(m['cdApplied']) != 0;
+        grand += cdApplied ? lineTotal * 0.97 : lineTotal;
+      });
+      updates['productsDetail'] = pd;
+      updates['grandTotal'] = double.parse(grand.toStringAsFixed(2));
+    } else {
+      final cdApplied = _i(order['cdApplied']) != 0;
+      final grandTotal = cdApplied ? total * 0.97 : total;
+      updates['rate'] = rate;
+      updates['totalAmount'] = total;
+      updates['grandTotal'] = double.parse(grandTotal.toStringAsFixed(2));
+    }
+
+    await orderRef.update(updates);
+    await _appendOrderNote(
+      r,
+      'Rate updated for ${r.productCode} from ${oldRate.toStringAsFixed(2)} to ${newRate.toStringAsFixed(2)}',
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Rate updated for ${r.productCode}')),
+    );
+  }
+
+  DataCell _rateCell(_SalesRegisterRow r) {
+    final canEdit = _canEditRate(r);
+    return DataCell(
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(r.rate.toStringAsFixed(2)),
+          if (canEdit) ...[
+            const SizedBox(width: 6),
+            const Icon(Icons.edit, size: 14, color: Colors.blueGrey),
+          ],
+        ],
+      ),
+      onTap: canEdit ? () => _showRateEditDialog(r) : null,
+    );
+  }
   Future<void> _updateDelivery(
     _SalesRegisterRow r,
     String status, {
@@ -568,15 +793,316 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
   bool _gmNeeded(double total) => total > 10000;
   bool _ceoNeeded(double total) => total >= 20001;
 
-  String _gmLabel(String name, double total) {
-    if (!_gmNeeded(total)) return 'N/A';
-    return name.isEmpty ? 'Needed' : name;
+  bool _canActAsAm(_SalesRegisterRow r) {
+    final status = _displayStatus(r.orderConfirmation, r.grandTotal);
+    return status == 'New' && _currentRole >= 2;
   }
 
-  String _ceoLabel(String name, double total) {
-    if (!_ceoNeeded(total)) return 'N/A';
-    return name.isEmpty ? 'Needed' : name;
+  bool _canActAsGm(_SalesRegisterRow r) {
+    final status = _displayStatus(r.orderConfirmation, r.grandTotal);
+    return status == 'Awaiting GM Approval' &&
+        _gmNeeded(r.grandTotal) &&
+        _currentRole >= 4;
   }
+
+  bool _canActAsCeo(_SalesRegisterRow r) {
+    final status = _displayStatus(r.orderConfirmation, r.grandTotal);
+    return status == 'Awaiting CEO Approval' &&
+        _ceoNeeded(r.grandTotal) &&
+        _currentRole >= 5;
+  }
+
+  bool _canRetractAm(_SalesRegisterRow r) {
+    if (_currentRole < 2) return false;
+    if (r.amApproverName.isEmpty) return false;
+    final status = _displayStatus(r.orderConfirmation, r.grandTotal);
+    if (status == 'Awaiting GM Approval') return true;
+    if (status == 'Confirmed' && !_gmNeeded(r.grandTotal)) return true;
+    return false;
+  }
+
+  bool _canRetractGm(_SalesRegisterRow r) {
+    if (_currentRole < 4) return false;
+    if (r.gmApproverName.isEmpty) return false;
+    final status = _displayStatus(r.orderConfirmation, r.grandTotal);
+    if (status == 'Awaiting CEO Approval') return true;
+    if (status == 'Confirmed' && _gmNeeded(r.grandTotal) && !_ceoNeeded(r.grandTotal)) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _canRetractCeo(_SalesRegisterRow r) {
+    if (_currentRole < 5) return false;
+    if (r.ceoApproverName.isEmpty) return false;
+    final status = _displayStatus(r.orderConfirmation, r.grandTotal);
+    return status == 'Confirmed' && _ceoNeeded(r.grandTotal);
+  }
+
+  String _amStatusText(_SalesRegisterRow r) {
+    final status = _displayStatus(r.orderConfirmation, r.grandTotal);
+    if (status == 'AM Cancelled') {
+      return r.amApproverName.isNotEmpty
+          ? '${r.amApproverName} (Cancelled)'
+          : 'Cancelled';
+    }
+    if (r.amApproverName.isNotEmpty) return r.amApproverName;
+    return status.contains('Cancelled') ? 'Cancelled' : '';
+  }
+
+  String _gmStatusText(_SalesRegisterRow r) {
+    if (!_gmNeeded(r.grandTotal)) return 'N/A';
+    final status = _displayStatus(r.orderConfirmation, r.grandTotal);
+    if (status == 'GM Cancelled') {
+      return r.gmApproverName.isNotEmpty
+          ? '${r.gmApproverName} (Cancelled)'
+          : 'Cancelled';
+    }
+    if (status == 'New') return '';
+    if (status == 'Awaiting GM Approval') {
+      return r.gmApproverName.isNotEmpty ? r.gmApproverName : '';
+    }
+    if (status == 'Awaiting CEO Approval' || status == 'Confirmed') {
+      return r.gmApproverName.isNotEmpty ? r.gmApproverName : '';
+    }
+    return status.contains('Cancelled') ? 'N/A' : r.gmApproverName;
+  }
+
+  String _ceoStatusText(_SalesRegisterRow r) {
+    if (!_ceoNeeded(r.grandTotal)) return 'N/A';
+    final status = _displayStatus(r.orderConfirmation, r.grandTotal);
+    if (status == 'CEO Cancelled') {
+      return r.ceoApproverName.isNotEmpty
+          ? '${r.ceoApproverName} (Cancelled)'
+          : 'Cancelled';
+    }
+    if (status == 'New' || status == 'Awaiting GM Approval') {
+      return '';
+    }
+    if (status == 'Awaiting CEO Approval') {
+      return r.ceoApproverName.isNotEmpty ? r.ceoApproverName : '';
+    }
+    if (status == 'Confirmed') {
+      return r.ceoApproverName.isNotEmpty ? r.ceoApproverName : '';
+    }
+    return status.contains('Cancelled') ? 'N/A' : r.ceoApproverName;
+  }
+
+  String _noteStamp(DateTime dt) {
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $hh:$mm';
+  }
+
+  Future<void> _appendOrderNote(_SalesRegisterRow r, String note) async {
+    final text = '${_noteStamp(DateTime.now())} - $_currentUserName: $note';
+    await _db
+        .ref('Orders/${r.customerCode}/${r.orderNo}/orderNotes')
+        .push()
+        .set(text);
+  }
+
+  Future<void> _applyApprovalAction(
+    _SalesRegisterRow r,
+    _ApprovalStage stage,
+    bool approved,
+  ) async {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final updates = <String, Object?>{};
+    final total = r.grandTotal;
+    String newStatus;
+    String note;
+
+    switch (stage) {
+      case _ApprovalStage.am:
+        if (approved) {
+          newStatus = _gmNeeded(total) ? 'Awaiting GM Approval' : 'Confirmed';
+          note = 'AM approved order';
+        } else {
+          newStatus = 'AM Cancelled';
+          note = 'AM cancelled order';
+        }
+        updates['amApproverID'] = _currentUserId;
+        updates['amApprovalDate'] = nowMs;
+        updates['gmApproverID'] = '';
+        updates['gmApprovalDate'] = 0;
+        updates['ceoApproverID'] = '';
+        updates['ceoApprovalDate'] = 0;
+        break;
+      case _ApprovalStage.gm:
+        if (approved) {
+          newStatus = _ceoNeeded(total) ? 'Awaiting CEO Approval' : 'Confirmed';
+          note = 'GM approved order';
+        } else {
+          newStatus = 'GM Cancelled';
+          note = 'GM cancelled order';
+        }
+        updates['gmApproverID'] = _currentUserId;
+        updates['gmApprovalDate'] = nowMs;
+        updates['ceoApproverID'] = '';
+        updates['ceoApprovalDate'] = 0;
+        break;
+      case _ApprovalStage.ceo:
+        if (approved) {
+          newStatus = 'Confirmed';
+          note = 'CEO approved order';
+        } else {
+          newStatus = 'CEO Cancelled';
+          note = 'CEO cancelled order';
+        }
+        updates['ceoApproverID'] = _currentUserId;
+        updates['ceoApprovalDate'] = nowMs;
+        break;
+    }
+
+    updates['orderConfirmation'] = newStatus;
+    await _db.ref('Orders/${r.customerCode}/${r.orderNo}').update(updates);
+    await _appendOrderNote(r, note);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Order status updated to $newStatus')),
+    );
+  }
+
+  Future<void> _applyRetractAction(
+    _SalesRegisterRow r,
+    _ApprovalStage stage,
+  ) async {
+    final updates = <String, Object?>{};
+    String newStatus;
+    String note;
+
+    switch (stage) {
+      case _ApprovalStage.am:
+        newStatus = 'New';
+        note = 'AM retracted approval';
+        updates['amApproverID'] = '';
+        updates['amApprovalDate'] = 0;
+        updates['gmApproverID'] = '';
+        updates['gmApprovalDate'] = 0;
+        updates['ceoApproverID'] = '';
+        updates['ceoApprovalDate'] = 0;
+        break;
+      case _ApprovalStage.gm:
+        newStatus = 'Awaiting GM Approval';
+        note = 'GM retracted approval';
+        updates['gmApproverID'] = '';
+        updates['gmApprovalDate'] = 0;
+        updates['ceoApproverID'] = '';
+        updates['ceoApprovalDate'] = 0;
+        break;
+      case _ApprovalStage.ceo:
+        newStatus = 'Awaiting CEO Approval';
+        note = 'CEO retracted approval';
+        updates['ceoApproverID'] = '';
+        updates['ceoApprovalDate'] = 0;
+        break;
+    }
+
+    updates['orderConfirmation'] = newStatus;
+    await _db.ref('Orders/${r.customerCode}/${r.orderNo}').update(updates);
+    await _appendOrderNote(r, note);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Order status updated to $newStatus')),
+    );
+  }
+
+  Widget _approverCell({
+    required String label,
+    required bool showActions,
+    VoidCallback? onApprove,
+    VoidCallback? onCancel,
+    bool showRetract = false,
+    VoidCallback? onRetract,
+  }) {
+    final trimmed = label.trim();
+    final hideLabel = showActions && trimmed.toLowerCase().startsWith('awaiting');
+    final display = (trimmed.isEmpty || hideLabel) ? '-' : trimmed;
+    final buttonTextStyle = const TextStyle(fontSize: 11);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(display),
+        if (showActions) ...[
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              ElevatedButton(
+                onPressed: onApprove,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(0, 28),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  textStyle: buttonTextStyle,
+                ),
+                child: const Text('Approve'),
+              ),
+              OutlinedButton(
+                onPressed: onCancel,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 28),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  textStyle: buttonTextStyle,
+                ),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ],
+        if (showRetract) ...[
+          const SizedBox(height: 4),
+          OutlinedButton(
+            onPressed: onRetract,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 28),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              textStyle: buttonTextStyle,
+            ),
+            child: const Text('Retract Approval'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _amApproverCell(_SalesRegisterRow r) => _approverCell(
+        label: _amStatusText(r),
+        showActions: _canActAsAm(r),
+        onApprove: () => _applyApprovalAction(r, _ApprovalStage.am, true),
+        onCancel: () => _applyApprovalAction(r, _ApprovalStage.am, false),
+        showRetract: _canRetractAm(r),
+        onRetract: () => _applyRetractAction(r, _ApprovalStage.am),
+      );
+
+  Widget _gmApproverCell(_SalesRegisterRow r) => _approverCell(
+        label: _gmStatusText(r),
+        showActions: _canActAsGm(r),
+        onApprove: () => _applyApprovalAction(r, _ApprovalStage.gm, true),
+        onCancel: () => _applyApprovalAction(r, _ApprovalStage.gm, false),
+        showRetract: _canRetractGm(r),
+        onRetract: () => _applyRetractAction(r, _ApprovalStage.gm),
+      );
+
+  Widget _ceoApproverCell(_SalesRegisterRow r) => _approverCell(
+        label: _ceoStatusText(r),
+        showActions: _canActAsCeo(r),
+        onApprove: () => _applyApprovalAction(r, _ApprovalStage.ceo, true),
+        onCancel: () => _applyApprovalAction(r, _ApprovalStage.ceo, false),
+        showRetract: _canRetractCeo(r),
+        onRetract: () => _applyRetractAction(r, _ApprovalStage.ceo),
+      );
 
   void _openOrder(_SalesRegisterRow r) {
     final customer = _customerByCode[r.customerCode];
@@ -759,6 +1285,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
   Widget _buildTable() {
     final headers = <String>[
       'Type of Order',
+      'Order Status',
       'Order No.',
       'Order Date',
       'Category',
@@ -784,9 +1311,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       'CD Amount @ 3%',
       'Total Billing Amount',
       'Grand Total (Order)',
-      'AM Approver Name',
-      'GM Approver Name',
-      'CEO Approver Name',
+      'AM Approver',
+      'GM Approver',
+      'CEO Approver',
       'Date Confirmed',
       'Delivery Status',
       'Date of Delivery',
@@ -803,11 +1330,13 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         useAlt = !useAlt;
       }
       lastOrderNo = r.orderNo;
+      final displayStatus = _displayStatus(r.orderConfirmation, r.grandTotal);
       dataRows.add(
         DataRow(
           color: useAlt ? MaterialStateProperty.all(Colors.grey.shade100) : null,
           cells: [
             DataCell(Text(r.orderType)),
+            DataCell(Text(displayStatus)),
             DataCell(
               Text(
                 r.orderNo,
@@ -837,14 +1366,14 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
             DataCell(Text(r.billingPercent)),
             DataCell(Text('${r.billedQty}')),
             DataCell(Text('${r.freeQty}')),
-            DataCell(Text(r.rate.toStringAsFixed(2))),
+            _rateCell(r),
             DataCell(Text(r.totalAmount.toStringAsFixed(2))),
             DataCell(Text(r.cdAmount.toStringAsFixed(2))),
             DataCell(Text(r.totalBillingAmount.toStringAsFixed(2))),
             DataCell(Text(r.grandTotal.toStringAsFixed(2))),
-            DataCell(Text(r.amApproverName)),
-            DataCell(Text(_gmLabel(r.gmApproverName, r.grandTotal))),
-            DataCell(Text(_ceoLabel(r.ceoApproverName, r.grandTotal))),
+            DataCell(_amApproverCell(r)),
+            DataCell(_gmApproverCell(r)),
+            DataCell(_ceoApproverCell(r)),
             DataCell(Text(fmtDate(r.finalApprovalDate))),
             DataCell(_deliveryStatusCell(r)),
             DataCell(_deliveryDateCell(r)),
@@ -895,6 +1424,36 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_canAccessSalesRegister) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        bottomNavigationBar: CommonFooter(),
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CommonHeader(
+                pageTitle: 'Sales Register',
+                userName: widget.salesPersonName,
+                onLogout: widget.onLogout,
+                roleId: widget.roleId,
+                salesPersonName: widget.salesPersonName,
+                allAccess: widget.allAccess,
+                allowedRegionIds: widget.allowedRegionIds,
+                allowedAreaIds: widget.allowedAreaIds,
+                allowedSubareaIds: widget.allowedSubareaIds,
+              ),
+              const Expanded(
+                child: Center(
+                  child: Text('You are not authorized to view the Sales Register.'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       bottomNavigationBar: CommonFooter(),
@@ -926,6 +1485,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     final rows = _filteredRows;
     final headers = <String>[
       'Type of Order',
+      'Order Status',
       'Order No.',
       'Order Date',
       'Category',
@@ -951,9 +1511,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       'CD Amount @ 3%',
       'Total Billing Amount',
       'Grand Total (Order)',
-      'AM Approver Name',
-      'GM Approver Name',
-      'CEO Approver Name',
+      'AM Approver',
+      'GM Approver',
+      'CEO Approver',
       'Date Confirmed',
       'Delivery Status',
       'Date of Delivery',
@@ -969,8 +1529,10 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     final buffer = StringBuffer();
     buffer.writeln(headers.map(esc).join(','));
     for (final r in rows) {
+      final displayStatus = _displayStatus(r.orderConfirmation, r.grandTotal);
       final data = [
         r.orderType,
+        displayStatus,
         r.orderNo,
         fmtDate(r.orderDate),
         r.category,
@@ -996,9 +1558,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         r.cdAmount.toStringAsFixed(2),
         r.totalBillingAmount.toStringAsFixed(2),
         r.grandTotal.toStringAsFixed(2),
-        r.amApproverName,
-        _gmLabel(r.gmApproverName, r.grandTotal),
-        _ceoLabel(r.ceoApproverName, r.grandTotal),
+        _amStatusText(r),
+        _gmStatusText(r),
+        _ceoStatusText(r),
         fmtDate(r.finalApprovalDate),
         r.deliveryStatus,
         fmtDate(r.deliveryDate),

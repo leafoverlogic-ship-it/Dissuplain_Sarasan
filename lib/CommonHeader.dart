@@ -42,6 +42,13 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
     this.allowedSubareaIds,
   });
 
+  bool get _canViewSalesRegister {
+    final sess = AppSession();
+    final currentRoleId = (sess.roleId ?? '').trim();
+    final currentSalesPersonId = (sess.salesPersonId ?? '').trim();
+    return currentRoleId == '4' || currentSalesPersonId == 'SS-1132';
+  }
+
   void _logout(BuildContext context) {
     if (onLogout != null) {
       onLogout!();
@@ -182,41 +189,44 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
                   style: menuButtonStyle,
                   child: const Text("Admin"),
                 ),*/
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    final sess = AppSession();
-                    final rId = roleId ?? sess.roleId;
-                    final sName =
-                        salesPersonName ?? (sess.salesPersonName ?? '');
-                    final aAcc = allAccess ?? (sess.allAccess ?? false);
-                    final rIds =
-                        allowedRegionIds ?? (sess.allowedRegionIds ?? const []);
-                    final aIds =
-                        allowedAreaIds ?? (sess.allowedAreaIds ?? const []);
-                    final sIds =
-                        allowedSubareaIds ??
-                        (sess.allowedSubareaIds ?? const []);
+                if (_canViewSalesRegister) ...[
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      final sess = AppSession();
+                      final rId = roleId ?? sess.roleId;
+                      final sName =
+                          salesPersonName ?? (sess.salesPersonName ?? '');
+                      final aAcc = allAccess ?? (sess.allAccess ?? false);
+                      final rIds =
+                          allowedRegionIds ??
+                          (sess.allowedRegionIds ?? const []);
+                      final aIds =
+                          allowedAreaIds ?? (sess.allowedAreaIds ?? const []);
+                      final sIds =
+                          allowedSubareaIds ??
+                          (sess.allowedSubareaIds ?? const []);
 
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SalesRegisterPage(
-                          roleId: rId,
-                          salesPersonName: sName,
-                          allAccess: aAcc,
-                          allowedRegionIds: rIds,
-                          allowedAreaIds: aIds,
-                          allowedSubareaIds: sIds,
-                          onLogout: onLogout,
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SalesRegisterPage(
+                            roleId: rId,
+                            salesPersonName: sName,
+                            allAccess: aAcc,
+                            allowedRegionIds: rIds,
+                            allowedAreaIds: aIds,
+                            allowedSubareaIds: sIds,
+                            onLogout: onLogout,
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                  style: menuButtonStyle,
-                  child: const Text("Sales Register"),
-                ),
-                const SizedBox(width: 8),
+                      );
+                    },
+                    style: menuButtonStyle,
+                    child: const Text("Sales Register"),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 if ((roleId is int ? roleId : int.tryParse('$roleId')) == 4)
                   ElevatedButton(
                     onPressed: () {

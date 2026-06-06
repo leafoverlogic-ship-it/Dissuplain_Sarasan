@@ -34,6 +34,13 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
     return r == '6' || r == '7' || r == '1';
   }
 
+  bool get _canViewOrdersSection {
+    final session = AppSession();
+    final roleId = (session.roleId ?? '').trim();
+    final salesPersonId = (session.salesPersonId ?? '').trim();
+    return roleId == '4' || salesPersonId == 'SS-1132';
+  }
+
   final _db = FirebaseDatabase.instance;
   late final ActivityLogsRepository _logsRepo = ActivityLogsRepository(db: _db);
 
@@ -1053,7 +1060,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        if (AppSession().roleId == '4') ...[
+                        if (_canViewOrdersSection) ...[
                           _Section(
                             title: 'Orders',
                             child: LayoutBuilder(

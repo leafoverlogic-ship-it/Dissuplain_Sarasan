@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:dissuplain_app_web_mobile/dataLayer/orders_repository.dart';
-import 'package:dissuplain_app_web_mobile/app_session.dart';
 
 class OrderSectionExistingOrder extends StatefulWidget {
   final OrdersRepository ordersRepo;
@@ -26,10 +25,11 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
     'All',
     'New',
     'Confirmed',
-    'Cancelled',
-    'AM Confirmed',
-    'GM Confirmed',
-    'CEO Confirmed',
+    'Awaiting GM Approval',
+    'Awaiting CEO Approval',
+    'AM Cancelled',
+    'GM Cancelled',
+    'CEO Cancelled',
   ];
   final ScrollController _hCtrl = ScrollController();
 
@@ -39,48 +39,33 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
   final Map<String, GlobalKey> _orderKeys = {};
   bool _didJump = false;
 
-  final String _currentUserId = AppSession().salesPersonId ?? '';
-  final String _roleId = AppSession().roleId ?? '';
-  bool get _canEditStatus {
-    final n = int.tryParse(_roleId);
-    if (n == null) return false;
-    return n >= 2; // Area Manager or above
-  }
-
   bool _gmNeeded(double total) => total > 10000;
   bool _ceoNeeded(double total) => total >= 20001;
 
-  String _gmLabel(String name, double total) {
-    if (!_gmNeeded(total)) return 'N/A';
-    return name.isEmpty ? 'Needed' : name;
-  }
-
-  String _ceoLabel(String name, double total) {
-    if (!_ceoNeeded(total)) return 'N/A';
-    return name.isEmpty ? 'Needed' : name;
-  }
-
-  bool _canApproveStage(
-    String targetStatus,
-    double total,
-    String currentStatus,
-  ) {
-    final role = int.tryParse(_roleId) ?? 0;
-    if (targetStatus == 'Cancelled') return true;
-    switch (targetStatus) {
-      case 'AM Confirmed':
-        return role >= 2;
-      case 'GM Confirmed':
-        if (total <= 10000) return false; // GM not needed below 10k
-        if (currentStatus != 'AM Confirmed') return false; // needs AM first
-        return role >= 5; // GM or higher
-      case 'CEO Confirmed':
-        if (total < 20001) return false; // CEO only 20001+
-        if (currentStatus != 'GM Confirmed') return false; // needs GM first
-        return role == 7;
-      default:
-        return false;
+  String _displayStatus(String raw, double total) {
+    final t = raw.trim();
+    if (t.isEmpty) return 'New';
+    final lower = t.toLowerCase();
+    if (lower == 'confirmed') return 'Confirmed';
+    if (lower == 'am confirmed') {
+      return _gmNeeded(total) ? 'Awaiting GM Approval' : 'Confirmed';
     }
+    if (lower == 'gm confirmed') {
+      return _ceoNeeded(total) ? 'Awaiting CEO Approval' : 'Confirmed';
+    }
+    if (lower == 'ceo confirmed') return 'Confirmed';
+    if (lower == 'awaiting gm approval') {
+      return _gmNeeded(total) ? 'Awaiting GM Approval' : 'Confirmed';
+    }
+    if (lower == 'awaiting ceo approval') {
+      return _ceoNeeded(total) ? 'Awaiting CEO Approval' : 'Confirmed';
+    }
+    if (lower == 'am cancelled') return 'AM Cancelled';
+    if (lower == 'gm cancelled') return 'GM Cancelled';
+    if (lower == 'ceo cancelled') return 'CEO Cancelled';
+    if (lower == 'cancelled') return 'AM Cancelled';
+    if (lower == 'new') return 'New';
+    return t;
   }
 
   @override
@@ -102,9 +87,11 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _orders
-        .where((o) => _filter == 'All' ? true : o.orderConfirmation == _filter)
-        .toList();
+    final filtered = _orders.where((o) {
+      if (_filter == 'All') return true;
+      final total = widget.ordersRepo.grandTotalFromEntryMP(o);
+      return _displayStatus(o.orderConfirmation, total) == _filter;
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,12 +172,6 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
   }
 
   Widget _buildOrdersDisplayMP(List<OrderEntry> src) {
-    String _name(String id) {
-      if (id.isEmpty) return '';
-      final map = widget.userNameById;
-      if (map == null || map.isEmpty) return id;
-      return map[id] ?? id;
-    }
     String _fmtDate(int ms) {
       final dt = DateTime.fromMillisecondsSinceEpoch(ms);
       final d = dt.day.toString().padLeft(2, '0');
@@ -289,27 +270,6 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
-              Expanded(
-                flex: 12,
-                child: Text(
-                  'AM Approver',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              Expanded(
-                flex: 12,
-                child: Text(
-                  'GM Approver',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              Expanded(
-                flex: 12,
-                child: Text(
-                  'CEO Approver',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
             ],
           ),
         );
@@ -365,9 +325,6 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                   textAlign: TextAlign.right,
                 ),
               ),
-              const Expanded(flex: 12, child: SizedBox.shrink()),
-              const Expanded(flex: 12, child: SizedBox.shrink()),
-              const Expanded(flex: 12, child: SizedBox.shrink()),
             ],
           ),
         );
@@ -393,10 +350,7 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                 child: Row(
                   children: [
                     Expanded(flex: 16, child: _head('Order ID')),
-                    Expanded(flex: 14, child: _head('Confirmation')),
-                    Expanded(flex: 12, child: _head('AM Approver')),
-                    Expanded(flex: 12, child: _head('GM Approver')),
-                    Expanded(flex: 12, child: _head('CEO Approver')),
+                    Expanded(flex: 14, child: _head('Order Status')),
                     Expanded(flex: 14, child: _head('Order Type')),
                     Expanded(flex: 22, child: _head('Distributor')),
                     Expanded(flex: 14, child: _head('Order Date')),
@@ -418,53 +372,7 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                   ),
                   Expanded(
                     flex: 14,
-                    child: _canEditStatus
-                        ? _InlineStatusEditor(
-                            initial: h.orderConfirmation,
-                            onSave: (v) async {
-                              final total =
-                                  widget.ordersRepo.grandTotalFromEntryMP(h);
-                              if (!_canApproveStage(
-                                v,
-                                total,
-                                h.orderConfirmation,
-                              )) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'You do not have approval rights for this stage/amount or previous stage is pending.',
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-                              final approverId =
-                                  v == 'Cancelled' ? '' : _currentUserId;
-                              await widget.ordersRepo.updateConfirmation(
-                                widget.customerCode,
-                                h.orderID,
-                                v,
-                                approverId: approverId,
-                              );
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Status updated to $v'),
-                                ),
-                              );
-                            },
-                          )
-                        : Text(h.orderConfirmation),
-                  ),
-                  Expanded(flex: 12, child: Text(_name(h.amApproverID))),
-                  Expanded(
-                    flex: 12,
-                    child: Text(_gmLabel(_name(h.gmApproverID), total)),
-                  ),
-                  Expanded(
-                    flex: 12,
-                    child: Text(_ceoLabel(_name(h.ceoApproverID), total)),
+                    child: Text(_displayStatus(h.orderConfirmation, total)),
                   ),
                   Expanded(flex: 14, child: Text(h.orderType)),
                   Expanded(
@@ -528,76 +436,6 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
     return Column(
       children: [
         ...children,
-      ],
-    );
-  }
-}
-
-class _InlineStatusEditor extends StatefulWidget {
-  final Future<void> Function(String) onSave;
-  final String initial;
-  const _InlineStatusEditor({
-    required this.onSave,
-    this.initial = 'Confirmed',
-    Key? key,
-  }) : super(key: key);
-  @override
-  State<_InlineStatusEditor> createState() => _InlineStatusEditorState();
-}
-
-class _InlineStatusEditorState extends State<_InlineStatusEditor> {
-  String? _v;
-  static const List<String> _options = [
-    'New',
-    'Cancelled',
-    'Confirmed', // legacy
-    'AM Confirmed',
-    'GM Confirmed',
-    'CEO Confirmed',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _v = _options.contains(widget.initial) ? widget.initial : 'New';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DropdownButton<String>(
-          value: _v,
-          isDense: true,
-          items: _options
-              .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-              .toList(),
-          onChanged: (v) => setState(() => _v = v),
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.check, size: 18),
-              padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-              onPressed: (_v == null || _v == 'New')
-                  ? null
-                  : () async {
-                      final target = _v == 'Confirmed' ? 'AM Confirmed' : _v!;
-                      await widget.onSave(target);
-                    },
-            ),
-            IconButton(
-              icon: const Icon(Icons.close, size: 18),
-              padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-              onPressed: () => setState(() => _v = ''),
-            ),
-          ],
-        ),
       ],
     );
   }

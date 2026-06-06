@@ -387,7 +387,8 @@ class OrdersRepository {
 
     final id = approverId?.trim() ?? '';
     switch (newStatus) {
-      case 'AM Confirmed':
+      case 'Awaiting GM Approval':
+      case 'AM Confirmed': // legacy
         data['amApproverID'] = id;
         data['gmApproverID'] = '';
         data['ceoApproverID'] = '';
@@ -395,11 +396,33 @@ class OrdersRepository {
         data['gmApprovalDate'] = 0;
         data['ceoApprovalDate'] = 0;
         break;
-      case 'GM Confirmed':
+      case 'Awaiting CEO Approval':
+      case 'GM Confirmed': // legacy
         if (id.isNotEmpty) data['gmApproverID'] = id;
         data['gmApprovalDate'] = nowMs;
+        data['ceoApproverID'] = '';
+        data['ceoApprovalDate'] = 0;
         break;
-      case 'CEO Confirmed':
+      case 'Confirmed':
+      case 'CEO Confirmed': // legacy
+        if (id.isNotEmpty) data['ceoApproverID'] = id;
+        data['ceoApprovalDate'] = nowMs;
+        break;
+      case 'AM Cancelled':
+        if (id.isNotEmpty) data['amApproverID'] = id;
+        data['amApprovalDate'] = nowMs;
+        data['gmApproverID'] = '';
+        data['gmApprovalDate'] = 0;
+        data['ceoApproverID'] = '';
+        data['ceoApprovalDate'] = 0;
+        break;
+      case 'GM Cancelled':
+        if (id.isNotEmpty) data['gmApproverID'] = id;
+        data['gmApprovalDate'] = nowMs;
+        data['ceoApproverID'] = '';
+        data['ceoApprovalDate'] = 0;
+        break;
+      case 'CEO Cancelled':
         if (id.isNotEmpty) data['ceoApproverID'] = id;
         data['ceoApprovalDate'] = nowMs;
         break;
