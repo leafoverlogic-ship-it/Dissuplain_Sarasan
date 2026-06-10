@@ -1,5 +1,5 @@
 |||| RUNNING WITHOUT DEBUG ||||
-flutter clean
+flutter  clean
 flutter pub get
 flutter run --release -d chrome
 
