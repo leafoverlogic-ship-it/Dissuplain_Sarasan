@@ -26,7 +26,7 @@ Address1 - based on what Customer Name is available, (if its doc then institute,
 Address2 - based on what Customer Name is available, (if its doc then institute, if its pharmacy then pharmacy)
 Landmark - based on what Customer Name is available, (if its doc then institute, if its pharmacy then pharmacy)
 Mobile No 1 - based on Customer Name is available, (if its doc then institute, if its pharmacy then pharmacy)
-Mobile No 2 - based on  Customer Name is available, (if its doc then institute, if its pharmacy then pharmacy)
+Mobile No 2 - based on Customer Name is available, (if its doc then institute, if its pharmacy then pharmacy)
 Order Type - "NA" for now
 Order Details - "NA" for now
 Order Amount - "NA" for now
