@@ -11,6 +11,7 @@ import 'screens/TerritoryManagerPage.dart';
 import 'screens/UserNamePwd.dart'; // <-- added fallback login
 import 'screens/SalesRegisterPage.dart';
 import 'app_session.dart';
+import 'app_theme.dart';
 
 class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
   final String pageTitle;
@@ -54,6 +55,7 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
       onLogout!();
       return;
     }
+    AppSession().clear();
     // Fallback: go to username/password login and clear stack
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const UserNamePwdPage()),
@@ -63,59 +65,122 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(
+              theme.brightness == Brightness.dark ? 0.22 : 0.07,
+            ),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border(
+          bottom: BorderSide(color: colorScheme.outlineVariant),
+        ),
+      ),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Image.asset(
-                  'assets/images/Sarasan_Logo.png',
-                  width: 57,
-                  height: 57,
-                ),
-                Column(
-                  children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 720;
+              final title = Column(
+                crossAxisAlignment:
+                    isCompact ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    pageTitle,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  if (userName != null && userName!.isNotEmpty)
                     Text(
-                      pageTitle,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    if (userName != null && userName!.isNotEmpty)
-                      Text(
-                        'Welcome $userName',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
+                      'Welcome $userName',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
                       ),
-                  ],
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextButton.icon(
-                      onPressed: () => _logout(context),
-                      icon: const Icon(Icons.logout, size: 18),
-                      label: const Text('Logout'),
                     ),
-                    const SizedBox(width: 8),
-                    Image.asset(
+                ],
+              );
+
+              final actions = Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: isCompact ? WrapAlignment.end : WrapAlignment.center,
+                children: [
+                  AppThemeToggleButton(compact: isCompact),
+                  TextButton.icon(
+                    onPressed: () => _logout(context),
+                    icon: const Icon(Icons.logout, size: 18),
+                    label: const Text('Logout'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: colorScheme.error,
+                    ),
+                  ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
                       'assets/images/Dissuplain_Image.png',
-                      width: 57,
-                      height: 57,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
                     ),
-                  ],
+                  ),
+                ],
+              );
+
+              return Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isCompact ? 12 : 18,
+                  vertical: 10,
                 ),
-              ],
-            ),
+                child: isCompact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Image.asset(
+                                'assets/images/Sarasan_Logo.png',
+                                width: 48,
+                                height: 48,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(child: title),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: actions,
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Image.asset(
+                            'assets/images/Sarasan_Logo.png',
+                            width: 57,
+                            height: 57,
+                          ),
+                          Expanded(child: Center(child: title)),
+                          actions,
+                        ],
+                      ),
+              );
+            },
           ),
-          SizedBox(
-            height: 5,
-            child: Container(color: const Color.fromARGB(255, 209, 209, 209)),
-          ),
+          Divider(height: 1, color: colorScheme.outlineVariant),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -154,7 +219,7 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
                       ),
                     );
                   },
-                  style: menuButtonStyle,
+                  style: menuButtonStyle(context),
                   child: const Text("Clients"),
                 ),
                 /*ElevatedButton(
@@ -222,7 +287,7 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
                         ),
                       );
                     },
-                    style: menuButtonStyle,
+                    style: menuButtonStyle(context),
                     child: const Text("Sales Register"),
                   ),
                   const SizedBox(width: 8),
@@ -235,29 +300,30 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
                         MaterialPageRoute(builder: (context) => Admin()),
                       );
                     },
-                    style: menuButtonStyle,
+                    style: menuButtonStyle(context),
                     child: const Text("Admin"),
                   ),
               ],
             ),
           ),
-          SizedBox(
-            height: 5,
-            child: Container(color: const Color.fromARGB(255, 209, 209, 209)),
-          ),
+          Divider(height: 1, color: colorScheme.outlineVariant),
         ],
       ),
     );
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(132);
 }
 
-final ButtonStyle menuButtonStyle = ElevatedButton.styleFrom(
-  backgroundColor: Colors.white,
-  foregroundColor: Colors.black,
-  elevation: 1,
-  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-);
+ButtonStyle menuButtonStyle(BuildContext context) {
+  final colorScheme = Theme.of(context).colorScheme;
+  return ElevatedButton.styleFrom(
+    backgroundColor: colorScheme.surface,
+    foregroundColor: colorScheme.onSurface,
+    elevation: 0,
+    side: BorderSide(color: colorScheme.outlineVariant),
+    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  );
+}

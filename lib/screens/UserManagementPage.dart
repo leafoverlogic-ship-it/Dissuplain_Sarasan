@@ -23,6 +23,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
   final _emailCtl = TextEditingController();
   final _roleCtl = TextEditingController();
   final _reportingCtl = TextEditingController();
+  final _regionCtl = TextEditingController();
+  final _areaCtl = TextEditingController();
 
   @override
   void initState() {
@@ -38,6 +40,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
     _emailCtl.dispose();
     _roleCtl.dispose();
     _reportingCtl.dispose();
+    _regionCtl.dispose();
+    _areaCtl.dispose();
     super.dispose();
   }
 
@@ -49,9 +53,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
           (event) {
             final v = event.snapshot.value;
             final out = <Map<String, dynamic>>[];
-            void addUser(Map m) {
+
+            bool parseDisabled(dynamic raw) {
+              if (raw is bool) return raw;
+              if (raw is num) return raw != 0;
+              if (raw is String) {
+                final value = raw.trim().toLowerCase();
+                return value == 'true' || value == '1' || value == 'yes' || value == 'disabled';
+              }
+              return false;
+            }
+
+            void addUser(Map<dynamic, dynamic> m, String key) {
               final id = (m['SalesPersonID'] ?? '').toString();
               if (id.isEmpty) return;
+
               out.add({
                 'SalesPersonID': id,
                 'SalesPersonName': (m['SalesPersonName'] ?? '').toString(),
@@ -60,18 +76,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 'loginPwd': (m['loginPwd'] ?? '').toString(),
                 'salesPersonRoleID': (m['salesPersonRoleID'] ?? '').toString(),
                 'ReportingPersonID': (m['ReportingPersonID'] ?? '').toString(),
-                'disabled': m['disabled'] == true,
-                '_key': m['_key'], // optional
+                'regionID': (m['regionID'] ?? m['RegionID'] ?? m['assignedRegionID'] ?? '').toString(),
+                'areaID': (m['areaID'] ?? m['AreaID'] ?? m['assignedAreaID'] ?? '').toString(),
+                'disabled': parseDisabled(m['disabled']),
+                '_key': key,
               });
             }
 
             if (v is Map) {
-              v.forEach((_, val) {
-                if (val is Map) addUser(val);
+              v.forEach((key, val) {
+                if (val is Map) addUser(Map<String, dynamic>.from(val), key.toString());
               });
             } else if (v is List) {
-              for (final val in v) {
-                if (val is Map) addUser(val);
+              for (int i = 0; i < v.length; i++) {
+                final val = v[i];
+                if (val is Map) addUser(Map<String, dynamic>.from(val), i.toString());
               }
             }
 
@@ -98,11 +117,74 @@ class _UserManagementPageState extends State<UserManagementPage> {
   Future<void> _saveUser(Map<String, dynamic> user) async {
     final id = user['SalesPersonID']?.toString() ?? '';
     if (id.isEmpty) return;
-    await _db.ref('Users').child(id).set(user);
+
+    final data = Map<String, dynamic>.from(user);
+    data.remove('_key');
+    await _db.ref('Users').child(id).set(data);
   }
 
-  Future<void> _updateUser(String id, Map<String, dynamic> delta) async {
-    await _db.ref('Users').child(id).update(delta);
+  Future<void> _updateUser(String key, Map<String, dynamic> delta) async {
+    final dbKey = key.trim().isNotEmpty ? key : '';
+    if (dbKey.isEmpty) return;
+
+    await _db.ref('Users').child(dbKey).update(delta);
+  }
+
+  Future<Map<String, String>> _resolveRoleOneTerritory(String rawRegion, String rawArea) async {
+    final regionLookup = <String, String>{};
+    final areaLookup = <String, String>{};
+
+    Future<void> loadRegions() async {
+      final snap = await _db.ref('Regions').get();
+      final v = snap.value;
+      void add(dynamic raw, String fallbackKey) {
+        if (raw is Map) {
+          final id = (raw['regionID'] ?? raw['regionId'] ?? raw['RegionID'] ?? raw['RegionId'] ?? fallbackKey).toString().trim();
+          final name = (raw['regionName'] ?? raw['RegionName'] ?? raw['name'] ?? raw['Name'] ?? '').toString().trim();
+          if (id.isNotEmpty) {
+            regionLookup[id.toLowerCase()] = id;
+            if (name.isNotEmpty) regionLookup[name.toLowerCase()] = id;
+          }
+        }
+      }
+
+      if (v is Map) {
+        v.forEach((k, raw) => add(raw, k.toString()));
+      } else if (v is List) {
+        for (var i = 0; i < v.length; i++) add(v[i], i.toString());
+      }
+    }
+
+    Future<void> loadAreas() async {
+      final snap = await _db.ref('Areas').get();
+      final v = snap.value;
+      void add(dynamic raw, String fallbackKey) {
+        if (raw is Map) {
+          final id = (raw['areaID'] ?? raw['areaId'] ?? raw['AreaID'] ?? raw['AreaId'] ?? fallbackKey).toString().trim();
+          final name = (raw['areaName'] ?? raw['AreaName'] ?? raw['name'] ?? raw['Name'] ?? '').toString().trim();
+          if (id.isNotEmpty) {
+            areaLookup[id.toLowerCase()] = id;
+            if (name.isNotEmpty) areaLookup[name.toLowerCase()] = id;
+          }
+        }
+      }
+
+      if (v is Map) {
+        v.forEach((k, raw) => add(raw, k.toString()));
+      } else if (v is List) {
+        for (var i = 0; i < v.length; i++) add(v[i], i.toString());
+      }
+    }
+
+    await Future.wait([loadRegions(), loadAreas()]);
+
+    final resolvedRegion = regionLookup[rawRegion.trim().toLowerCase()] ?? rawRegion.trim();
+    final resolvedArea = areaLookup[rawArea.trim().toLowerCase()] ?? rawArea.trim();
+
+    return {
+      'regionID': resolvedRegion,
+      'areaID': resolvedArea,
+    };
   }
 
   Future<void> _createNewUser() async {
@@ -128,6 +210,15 @@ class _UserManagementPageState extends State<UserManagementPage> {
       'loginPwd': 'Welcome@123',
       'disabled': false,
     };
+    if (role == '1') {
+      final regionText = _regionCtl.text.trim();
+      final areaText = _areaCtl.text.trim();
+      if (regionText.isNotEmpty || areaText.isNotEmpty) {
+        final resolved = await _resolveRoleOneTerritory(regionText, areaText);
+        if (regionText.isNotEmpty) data['regionID'] = resolved['regionID'] ?? '';
+        if (areaText.isNotEmpty) data['areaID'] = resolved['areaID'] ?? '';
+      }
+    }
     await _saveUser(data);
     _idCtl.clear();
     _nameCtl.clear();
@@ -135,6 +226,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
     _emailCtl.clear();
     _roleCtl.clear();
     _reportingCtl.clear();
+    _regionCtl.clear();
+    _areaCtl.clear();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -145,7 +238,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   Widget _userCard(Map<String, dynamic> u) {
-    final id = u['SalesPersonID'] ?? '';
+    final id = (u['SalesPersonID'] ?? '').toString();
+    final dbKey = (u['_key'] ?? id).toString();
     final nameCtl = TextEditingController(text: u['SalesPersonName'] ?? '');
     final phoneCtl = TextEditingController(text: u['phoneNumber'] ?? '');
     final emailCtl = TextEditingController(text: u['emailAddress'] ?? '');
@@ -153,11 +247,36 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final reportingCtl = TextEditingController(
       text: u['ReportingPersonID'] ?? '',
     );
+    final regionCtl = TextEditingController(
+      text: (u['regionID'] ?? u['RegionID'] ?? u['assignedRegionID'] ?? '').toString(),
+    );
+    final areaCtl = TextEditingController(
+      text: (u['areaID'] ?? u['AreaID'] ?? u['assignedAreaID'] ?? '').toString(),
+    );
+    final passwordCtl = TextEditingController(text: (u['loginPwd'] ?? '').toString());
     final disabled = u['disabled'] == true;
+    final roleIsOne = roleCtl.text.trim() == '1';
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: Padding(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+      elevation: 4,
+      color: const Color(0xFFE0F2F1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: Color(0xFF26A69A), width: 1.2),
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFE0F2F1),
+              Color(0xFFB2DFDB),
+            ],
+          ),
+        ),
         padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,7 +293,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     Switch(
                       value: disabled,
                       onChanged: (v) async {
-                        await _updateUser(id, {'disabled': v});
+                        await _updateUser(dbKey, {'disabled': v});
                       },
                     ),
                     const SizedBox(width: 4),
@@ -193,17 +312,32 @@ class _UserManagementPageState extends State<UserManagementPage> {
             ),
             _fieldRow('Role ID', roleCtl),
             _fieldRow('Reporting Person ID', reportingCtl),
+            _fieldRow('Password', passwordCtl, enabled: false),
+            if (roleIsOne) ...[
+              _fieldRow('Region ID', regionCtl),
+              _fieldRow('Area ID', areaCtl),
+            ],
             Row(
               children: [
                 ElevatedButton(
                   onPressed: () async {
-                    await _updateUser(id, {
+                    final update = <String, dynamic>{
                       'SalesPersonName': nameCtl.text.trim(),
                       'phoneNumber': phoneCtl.text.trim(),
                       'emailAddress': emailCtl.text.trim(),
                       'salesPersonRoleID': roleCtl.text.trim(),
                       'ReportingPersonID': reportingCtl.text.trim(),
-                    });
+                    };
+                    if (roleCtl.text.trim() == '1') {
+                      final regionText = regionCtl.text.trim();
+                      final areaText = areaCtl.text.trim();
+                      if (regionText.isNotEmpty || areaText.isNotEmpty) {
+                        final resolved = await _resolveRoleOneTerritory(regionText, areaText);
+                        if (regionText.isNotEmpty) update['regionID'] = resolved['regionID'] ?? '';
+                        if (areaText.isNotEmpty) update['areaID'] = resolved['areaID'] ?? '';
+                      }
+                    }
+                    await _updateUser(dbKey, update);
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('User updated')),
@@ -215,7 +349,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 const SizedBox(width: 12),
                 TextButton(
                   onPressed: () async {
-                    await _updateUser(id, {'loginPwd': 'Welcome@123'});
+                    await _updateUser(dbKey, {'loginPwd': 'Welcome@123'});
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -238,6 +372,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     String label,
     TextEditingController ctl, {
     TextInputType? keyboardType,
+    bool enabled = true,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -254,6 +389,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
             child: TextField(
               controller: ctl,
               keyboardType: keyboardType,
+              enabled: enabled,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 isDense: true,
@@ -271,8 +407,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: theme.scaffoldBackgroundColor,
       bottomNavigationBar: CommonFooter(),
       body: SafeArea(
         child: Column(
@@ -329,6 +466,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         width: 140,
                         child: TextField(
                           controller: _roleCtl,
+                          onChanged: (_) => setState(() {}),
                           decoration: const InputDecoration(
                             labelText: 'Role ID',
                           ),
@@ -343,6 +481,46 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           ),
                         ),
                       ),
+                      if (_roleCtl.text.trim() == '1') ...[
+                        SizedBox(
+                          width: 150,
+                          child: TextField(
+                            controller: _regionCtl,
+                            decoration: const InputDecoration(
+                              labelText: 'Region ID',
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 150,
+                          child: TextField(
+                            controller: _areaCtl,
+                            decoration: const InputDecoration(
+                              labelText: 'Area ID',
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (_roleCtl.text.trim() == '1') ...[
+                        SizedBox(
+                          width: 150,
+                          child: TextField(
+                            controller: _regionCtl,
+                            decoration: const InputDecoration(
+                              labelText: 'Region ID',
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 150,
+                          child: TextField(
+                            controller: _areaCtl,
+                            decoration: const InputDecoration(
+                              labelText: 'Area ID',
+                            ),
+                          ),
+                        ),
+                      ],
                       ElevatedButton(
                         onPressed: _createNewUser,
                         child: const Text('Create (pwd: Welcome@123)'),

@@ -756,8 +756,8 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   Widget build(BuildContext context) {
     final code = widget.client.customerCode ?? '';
 
-    return Scaffold(
-      backgroundColor: Colors.white,
+return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -1222,7 +1222,7 @@ class _Section extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.black12),
+border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1570,12 +1570,12 @@ class _ActivityLogsState extends State<_ActivityLogs> {
                   child: ElevatedButton(
                     onPressed: _submitLog,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
+backgroundColor: Theme.of(context).colorScheme.primary,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: const Text(
+child: Text(
                       'Add Log',
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
                     ),
                   ),
                 ),

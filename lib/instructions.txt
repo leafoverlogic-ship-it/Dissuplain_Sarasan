@@ -3,7 +3,7 @@ flutter  clean
 flutter pub get
 flutter run --release -d chrome
 
-|| REDEPLOYMENT TO FIREBASE || (DONT DO THIS)
+|| REDEPLOYMENT TO FIREBASE ||
 flutter build web
 firebase deploy --only hosting
 
@@ -11,6 +11,9 @@ firebase deploy --only hosting
 git add -A
 git commit -m "<date>"
 git push
+
+|| TO RECEIVE CHANGE DONE BY CHACHU ||
+git pull
 
 || Beat Plan Export ||
 Visit Date - date from last activity log

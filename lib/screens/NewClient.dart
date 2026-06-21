@@ -41,21 +41,21 @@ class _NewClientPageState extends State<NewClientPage> {
   final _db = FirebaseDatabase.instance;
 
   // ---------- Base fields ----------
-  final _clientNameCtrl = TextEditingController(); // 30
+  final _clientNameCtrl = TextEditingController(); // 30 (Institution Name)
   final _address1Ctrl = TextEditingController(); // 30
   final _address2Ctrl = TextEditingController(); // 30
-  final _phone1Ctrl = TextEditingController(); // 10 numeric
-  final _phone2Ctrl = TextEditingController(); // 10 numeric
   final _pinCodeCtrl = TextEditingController(); // 6 numeric
-  // final _typeInstCtrl = TextEditingController(); // 25
-  String? _typeInstValue;
-  static const _institutionTypes = [
-    'Clinic',
-    'Hospital',
-    'Pharmacy',
-    'GYM/Sports',
-    'Physiotherapy Centre'
-  ];
+
+  // ---------- Contact Person Sections (2 copies) ----------
+  final _contact1NameCtrl = TextEditingController(); // 30
+  final _contact1PhoneCtrl = TextEditingController(); // 10 numeric
+  final _contact1WhatsappCtrl = TextEditingController(); // 10 numeric
+  bool _contact1WhatsappError = false;
+
+  final _contact2NameCtrl = TextEditingController(); // 30
+  final _contact2PhoneCtrl = TextEditingController(); // 10 numeric
+  final _contact2WhatsappCtrl = TextEditingController(); // 10 numeric
+  bool _contact2WhatsappError = false;
 
   // Derived/readonly
   final _salesPersonNameCtrl = TextEditingController(); // auto-filled
@@ -91,8 +91,6 @@ class _NewClientPageState extends State<NewClientPage> {
   // Business / Status
   String? _statusValue; // Active, NA, Hot, Warm, Cold, Prospect
   String? _visitDaysValue; // MON..SUN
-  String? _businessSlabValue; // <=500, 500-1000, ...
-  final _businessCatCtrl = TextEditingController(); // auto (read-only)
   final _visitFreqDaysCtrl = TextEditingController(); // 3 numeric
 
   // ---------- Hierarchy & Category ----------
@@ -148,6 +146,10 @@ class _NewClientPageState extends State<NewClientPage> {
   @override
   void initState() {
     super.initState();
+
+    if ((widget.salesPersonName ?? '').trim().isNotEmpty) {
+      _salesPersonNameCtrl.text = widget.salesPersonName!.trim();
+    }
 
     // --- Stream region/area/subarea from repositories (names shown, no "All") ---
     _regionsRepo.streamRegions().listen(
@@ -222,9 +224,15 @@ class _NewClientPageState extends State<NewClientPage> {
     _clientNameCtrl.dispose();
     _address1Ctrl.dispose();
     _address2Ctrl.dispose();
-    _phone1Ctrl.dispose();
-    _phone2Ctrl.dispose();
     _pinCodeCtrl.dispose();
+
+    // Contact Person Sections
+    _contact1NameCtrl.dispose();
+    _contact1PhoneCtrl.dispose();
+    _contact1WhatsappCtrl.dispose();
+    _contact2NameCtrl.dispose();
+    _contact2PhoneCtrl.dispose();
+    _contact2WhatsappCtrl.dispose();
     //_typeInstCtrl.dispose();
 
     _salesPersonNameCtrl.dispose();
@@ -254,7 +262,6 @@ class _NewClientPageState extends State<NewClientPage> {
 
     // GST/Business
     _gstNumberCtrl.dispose();
-    _businessCatCtrl.dispose();
     _visitFreqDaysCtrl.dispose();
 
     super.dispose();
@@ -445,12 +452,17 @@ class _NewClientPageState extends State<NewClientPage> {
   }
 
   // ---------- Repo-backed dropdown helpers (names shown, no "All") ----------
+  bool _matchesAllowed(String value, Set<String> allow) {
+    final v = _s(value).toLowerCase();
+    return allow.isEmpty || allow.contains(v) || allow.contains(v.replaceAll(' ', ''));
+  }
+
   List<DropdownMenuItem<String>> _regionItemsR() {
-    final allow = widget.allowedRegionIds.map(_s).toSet();
+    final allow = widget.allowedRegionIds.map((e) => _s(e).toLowerCase()).toSet();
 
     final rows =
         _regionsR
-            .where((r) => allow.isEmpty || allow.contains(_s(r.regionId)))
+            .where((r) => allow.isEmpty || _matchesAllowed(r.regionId, allow) || _matchesAllowed(r.regionName, allow))
             .toList()
           ..sort(
             (a, b) => a.regionName.toLowerCase().compareTo(
@@ -469,17 +481,24 @@ class _NewClientPageState extends State<NewClientPage> {
   }
 
   List<DropdownMenuItem<String>> _categoryItems() {
-    final names = _categories.keys.toList()..sort();
-    return names
+    final allowedCategories = [
+      'Clinic',
+      'Hospital',
+      'Prescriber',
+      'Standalone medical shop',
+      'Physiotherapy centre',
+      'Gym',
+    ];
+    return allowedCategories
         .map((name) => DropdownMenuItem<String>(value: name, child: Text(name)))
         .toList();
   }
 
   List<DropdownMenuItem<String>> _areaItemsR() {
-    final allow = widget.allowedAreaIds.map(_s).toSet();
+    final allow = widget.allowedAreaIds.map((e) => _s(e).toLowerCase()).toSet();
 
     Iterable<AreaEntry> pool = _areasR.where(
-      (a) => allow.isEmpty || allow.contains(_s(a.areaId)),
+      (a) => allow.isEmpty || _matchesAllowed(a.areaId, allow) || _matchesAllowed(a.areaName, allow),
     );
 
     if ((_selectedRegionId ?? '').isNotEmpty) {
@@ -498,10 +517,10 @@ class _NewClientPageState extends State<NewClientPage> {
   }
 
   List<DropdownMenuItem<String>> _subAreaItemsR() {
-    final allow = widget.allowedSubareaIds.map(_s).toSet();
+    final allow = widget.allowedSubareaIds.map((e) => _s(e).toLowerCase()).toSet();
 
     Iterable<SubAreaEntry> pool = _subAreasR.where(
-      (s) => allow.isEmpty || allow.contains(_s(s.subareaId)),
+      (s) => allow.isEmpty || _matchesAllowed(s.subareaId, allow) || _matchesAllowed(s.subareaName, allow),
     );
 
     if ((_selectedRegionId ?? '').isNotEmpty) {
@@ -619,15 +638,33 @@ class _NewClientPageState extends State<NewClientPage> {
           : '';
 
       _assignedSEId = assigned.isNotEmpty ? assigned : null;
-      final spName = (_assignedSEId != null) ? _s(_users[_assignedSEId!]) : '';
+      final spName = (_assignedSEId != null) ? _s(_users[_assignedSEId!]) : (widget.salesPersonName ?? '');
       _salesPersonNameCtrl.text = spName;
     });
+  }
+
+  // ---------- Category code mapping ----------
+  String _getCategoryCode(String categoryName) {
+    // First check if it exists in database-loaded categories
+    if (_categories.containsKey(categoryName)) {
+      return _categories[categoryName] ?? '';
+    }
+    // Default mappings for standard categories
+    final defaultCodes = {
+      'Clinic': 'CL',
+      'Hospital': 'HO',
+      'Prescriber': 'PR',
+      'Standalone medical shop': 'SM',
+      'Physiotherapy centre': 'PT',
+      'Gym': 'GY',
+    };
+    return defaultCodes[categoryName] ?? '';
   }
 
   void _onCategoryChanged(String? name) {
     setState(() {
       _selectedCategoryName = name;
-      _selectedCategoryCode = (name != null) ? _categories[name] : null;
+      _selectedCategoryCode = (name != null) ? _getCategoryCode(name) : null;
     });
     _tryGenerateCustomerCode();
   }
@@ -711,36 +748,6 @@ class _NewClientPageState extends State<NewClientPage> {
     return '${months[d.month - 1]} ${d.year}';
   }
 
-  // ---------- Business slab → category ----------
-  String _businessCatForSlab(String? slab) {
-    switch (slab) {
-      case '<=500':
-        return 'E';
-
-      case '500-1000':
-        return 'C';
-
-      case '1000-2000':
-        return 'B';
-
-      case '2000-3000':
-        return 'A';
-
-      case '>3000':
-        return 'A+';
-
-      default:
-        return '';
-    }
-  }
-
-  void _onBusinessSlabChanged(String? slab) {
-    setState(() {
-      _businessSlabValue = slab;
-      _businessCatCtrl.text = _businessCatForSlab(slab);
-    });
-  }
-
   // ---------- Input formatters ----------
   List<TextInputFormatter> _limit30() => [LengthLimitingTextInputFormatter(30)];
   List<TextInputFormatter> _digits10() => [
@@ -782,14 +789,29 @@ class _NewClientPageState extends State<NewClientPage> {
       return;
     }
 
-    if (_clientNameCtrl.text.trim().isEmpty ||
-        _address1Ctrl.text.trim().isEmpty ||
-        _phone1Ctrl.text.trim().isEmpty ||
-        _typeInstValue == null) {
+    // Check at least one contact person section is filled
+    final contact1Filled = _contact1NameCtrl.text.trim().isNotEmpty &&
+        _contact1PhoneCtrl.text.trim().isNotEmpty;
+    final contact2Filled = _contact2NameCtrl.text.trim().isNotEmpty &&
+        _contact2PhoneCtrl.text.trim().isNotEmpty;
+
+    if (!contact1Filled && !contact2Filled) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Please Client Name, Address 1, Phone 1 and Type of Institution before saving.',
+            'Please fill at least one complete Contact Person/Doctor section (name and phone number).',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_clientNameCtrl.text.trim().isEmpty ||
+        _address1Ctrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter Institution Name and Address 1 before saving.',
           ),
         ),
       );
@@ -843,10 +865,13 @@ class _NewClientPageState extends State<NewClientPage> {
       'ClientName': _clientNameCtrl.text.trim(),
       'Address1': _address1Ctrl.text.trim(),
       'Address2': _address2Ctrl.text.trim(),
-      'Phone1': _phone1Ctrl.text.trim(),
-      'Phone2': _phone2Ctrl.text.trim(),
+      'Contact_Person_1_Name': _contact1NameCtrl.text.trim(),
+      'Contact_Person_1_Phone': _contact1PhoneCtrl.text.trim(),
+      'Contact_Person_1_Whatsapp': _contact1WhatsappCtrl.text.trim(),
+      'Contact_Person_2_Name': _contact2NameCtrl.text.trim(),
+      'Contact_Person_2_Phone': _contact2PhoneCtrl.text.trim(),
+      'Contact_Person_2_Whatsapp': _contact2WhatsappCtrl.text.trim(),
       'PinCode': _pinCodeCtrl.text.trim(),
-      'Type_Of_Institution': _typeInstValue, // --- Dates ---
       'DateOfOpening': _dateOfOpening?.toIso8601String(),
 
       // --- NEW: Doctor in Institution ---
@@ -878,7 +903,7 @@ class _NewClientPageState extends State<NewClientPage> {
 
       'BUSINESS_SLAB': '',
 
-      'BUSINESS_CAT': _businessCatCtrl.text.trim(),
+        'BUSINESS_CAT': '',
       'VISIT_FREQUENCY_In_Days': _visitFreqDaysCtrl.text.trim(),
 
       // Meta
@@ -1029,17 +1054,17 @@ class _NewClientPageState extends State<NewClientPage> {
 
                 const SizedBox(height: 16),
 
-                // ---- Client basic ----
+                // ---- Institution basic ----
                 TextFormField(
                   controller: _clientNameCtrl,
                   inputFormatters: _limit30(),
                   decoration: const InputDecoration(
-                    labelText: 'Client Name',
+                    labelText: 'Institution Name',
                     border: OutlineInputBorder(),
                   ),
 
                   validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Enter Client Name'
+                      ? 'Enter Institution Name'
                       : null,
                 ),
                 const SizedBox(height: 12),
@@ -1061,34 +1086,6 @@ class _NewClientPageState extends State<NewClientPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _phone1Ctrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: _digits10(),
-                        decoration: const InputDecoration(
-                          labelText: 'Phone 1',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _phone2Ctrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: _digits10(),
-                        decoration: const InputDecoration(
-                          labelText: 'Phone 2',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
                 TextFormField(
                   controller: _pinCodeCtrl,
                   keyboardType: TextInputType.number,
@@ -1098,19 +1095,139 @@ class _NewClientPageState extends State<NewClientPage> {
                     border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
+                const SizedBox(height: 20),
+
+                // ---- Contact Person Section 1 ----
+                _SectionHeader(title: 'Contact Person / Doctor #1'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _contact1NameCtrl,
+                  inputFormatters: _limit30(),
                   decoration: const InputDecoration(
-                    labelText: 'Type Of Institution',
+                    labelText: 'Contact Person/Doctor',
                     border: OutlineInputBorder(),
                   ),
-                  value: _typeInstValue,
-                  items: _institutionTypes
-                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _typeInstValue = v),
                 ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _contact1PhoneCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: _digits10(),
+                  decoration: const InputDecoration(
+                    labelText: 'Phone Number',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Stack(
+                  children: [
+                    TextFormField(
+                      controller: _contact1WhatsappCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: _digits10(),
+                      decoration: const InputDecoration(
+                        labelText: 'Whatsapp Number',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.only(left: 12, right: 50, top: 12, bottom: 12),
+                      ),
+                    ),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          if (_contact1PhoneCtrl.text.trim().isEmpty) {
+                            setState(() => _contact1WhatsappError = true);
+                          } else {
+                            setState(() {
+                              _contact1WhatsappCtrl.text = _contact1PhoneCtrl.text;
+                              _contact1WhatsappError = false;
+                            });
+                          }
+                        },
+                        child: const Tooltip(
+                          message: 'Copy phone number',
+                          child: Icon(Icons.check_circle, color: Colors.green, size: 28),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_contact1WhatsappError)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'FILL PHONE NUMBER FIRST',
+                      style: TextStyle(color: Colors.red[700], fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+
+                const SizedBox(height: 20),
+
+                // ---- Contact Person Section 2 ----
+                _SectionHeader(title: 'Contact Person / Doctor #2'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _contact2NameCtrl,
+                  inputFormatters: _limit30(),
+                  decoration: const InputDecoration(
+                    labelText: 'Contact Person/Doctor',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _contact2PhoneCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: _digits10(),
+                  decoration: const InputDecoration(
+                    labelText: 'Phone Number',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Stack(
+                  children: [
+                    TextFormField(
+                      controller: _contact2WhatsappCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: _digits10(),
+                      decoration: const InputDecoration(
+                        labelText: 'Whatsapp Number',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.only(left: 12, right: 50, top: 12, bottom: 12),
+                      ),
+                    ),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          if (_contact2PhoneCtrl.text.trim().isEmpty) {
+                            setState(() => _contact2WhatsappError = true);
+                          } else {
+                            setState(() {
+                              _contact2WhatsappCtrl.text = _contact2PhoneCtrl.text;
+                              _contact2WhatsappError = false;
+                            });
+                          }
+                        },
+                        child: const Tooltip(
+                          message: 'Copy phone number',
+                          child: Icon(Icons.check_circle, color: Colors.green, size: 28),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_contact2WhatsappError)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'FILL PHONE NUMBER FIRST',
+                      style: TextStyle(color: Colors.red[700], fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                  ),
 
                 const SizedBox(height: 16),
 
@@ -1354,49 +1471,6 @@ class _NewClientPageState extends State<NewClientPage> {
                     DropdownMenuItem(value: '', child: Text('')),
                   ],
                   onChanged: (v) => setState(() => _visitDaysValue = v),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Business Slab',
-                    border: OutlineInputBorder(),
-                  ),
-
-                  value: _businessSlabValue,
-                  items: const [
-                    DropdownMenuItem(value: '<=500', child: Text('<=500')),
-
-                    DropdownMenuItem(
-                      value: '500-1000',
-                      child: Text('500-1000'),
-                    ),
-
-                    DropdownMenuItem(
-                      value: '1000-2000',
-                      child: Text('1000-2000'),
-                    ),
-
-                    DropdownMenuItem(
-                      value: '2000-3000',
-                      child: Text('2000-3000'),
-                    ),
-
-                    DropdownMenuItem(value: '>3000', child: Text('>3000')),
-                    DropdownMenuItem(value: '', child: Text('')),
-                  ],
-                  onChanged: _onBusinessSlabChanged,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _businessCatCtrl,
-                  readOnly: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Business Category',
-                    border: OutlineInputBorder(),
-
-                    helperText: 'Auto: E, C, B, A, A+ based on BusinessSlab',
-                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

@@ -2,6 +2,25 @@ import 'package:firebase_database/firebase_database.dart';
 
 String _s(dynamic v) => v?.toString().trim() ?? '';
 
+bool isUserDisabled(Map<String, dynamic> user) {
+  final rawDisabled = user['disabled'];
+  if (rawDisabled is bool) return rawDisabled;
+  if (rawDisabled is String) {
+    final value = rawDisabled.trim().toLowerCase();
+    if (value == 'true' || value == '1' || value == 'yes' || value == 'disabled') {
+      return true;
+    }
+    if (value == 'false' || value == '0' || value == 'no' || value == 'enabled') {
+      return false;
+    }
+  }
+
+  final status = _s(user['status']).toLowerCase();
+  return status == 'disabled' || status == 'inactive';
+}
+
+bool canAccessUser(Map<String, dynamic> user) => !isUserDisabled(user);
+
 /// One row from /Users
 class UserEntry {
   final String salesPersonId;      // SalesPersonID / salesPersonID

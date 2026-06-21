@@ -851,8 +851,8 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
     final titleText = _beatPlanMode
         ? 'Beat Plan'
         : 'Clients List';
-    return Scaffold(
-      backgroundColor: Colors.white,
+return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
@@ -1041,6 +1041,9 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                 allowedRegionIds: widget.allowedRegionIds,
                 allowedAreaIds: widget.allowedAreaIds,
                 allowedSubareaIds: widget.allowedSubareaIds,
+                roleId: widget.roleId,
+                salesPersonName: widget.salesPersonName,
+                allAccess: widget.allAccess,
               ),
             ),
           );
@@ -1321,9 +1324,9 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.black12),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           boxShadow: const [
             BoxShadow(blurRadius: 2, spreadRadius: 0, color: Color(0x14000000)),
           ],
@@ -1416,10 +1419,10 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
               children: [
                 Text(
                   'Followup date: $follow',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: Colors.deepOrange,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
                 Text(spName, style: const TextStyle(fontSize: 14)),
