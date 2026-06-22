@@ -70,6 +70,12 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
   List<ProductCategoryRow> _pcRows = [];
   final String _salesPersonId = AppSession().salesPersonId ?? '';
 
+  final _businessNameCtl = TextEditingController();
+  final _businessAddressCtl = TextEditingController();
+  final _gstNumberCtl = TextEditingController();
+  final _contactPersonCtl = TextEditingController();
+  final _mobileNoCtl = TextEditingController();
+
   Widget _mpBuildBillingTypeSwitch(int i) {
     if (i < 0 || i >= mp_rows.length) return const SizedBox.shrink();
     final r = mp_rows[i];
@@ -127,6 +133,11 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
   void dispose() {
     _qtyCtl.dispose();
     _newOrderHCtrl.dispose();
+    _businessNameCtl.dispose();
+    _businessAddressCtl.dispose();
+    _gstNumberCtl.dispose();
+    _contactPersonCtl.dispose();
+    _mobileNoCtl.dispose();
     super.dispose();
   }
 
@@ -258,6 +269,32 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
       return;
     }
 
+    final businessName = _businessNameCtl.text.trim();
+    final businessAddress = _businessAddressCtl.text.trim();
+    final gstNumber = _gstNumberCtl.text.trim().toUpperCase();
+    final contactPerson = _contactPersonCtl.text.trim();
+    final mobileNo = _mobileNoCtl.text.trim();
+
+    if (businessName.isEmpty ||
+        businessAddress.isEmpty ||
+        gstNumber.isEmpty ||
+        contactPerson.isEmpty ||
+        mobileNo.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill all mandatory Business Details fields'),
+        ),
+      );
+      return;
+    }
+
+    if (mobileNo.length != 10 || int.tryParse(mobileNo) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mobile No. must be exactly 10 digits')),
+      );
+      return;
+    }
+
     await widget.ordersRepo.addMPOrder(
       customerCode: widget.customerCode,
       orderType: _orderType!,
@@ -265,6 +302,11 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
       salesPersonID: _salesPersonId,
       grandTotal: grandTotal,
       productsDetail: productsDetail,
+      businessName: businessName,
+      businessAddress: businessAddress,
+      gstNumber: gstNumber,
+      contactPerson: contactPerson,
+      mobileNo: mobileNo,
     );
 
     // Reset qty fields and recompute
@@ -567,6 +609,84 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
               .toList(),
           onChanged: (v) => setState(() => _distributorId = v),
           isDense: true,
+        ),
+
+        const SizedBox(height: 12),
+
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Business Details',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'All fields are mandatory before saving order.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _businessNameCtl,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Business Name *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _businessAddressCtl,
+                textCapitalization: TextCapitalization.sentences,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Business Address *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _gstNumberCtl,
+                textCapitalization: TextCapitalization.characters,
+                maxLength: 15,
+                decoration: const InputDecoration(
+                  labelText: 'GstNumber *',
+                  border: OutlineInputBorder(),
+                  counterText: '',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _contactPersonCtl,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Contact Person *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _mobileNoCtl,
+                keyboardType: TextInputType.number,
+                maxLength: 10,
+                decoration: const InputDecoration(
+                  labelText: 'Mobile No. *',
+                  border: OutlineInputBorder(),
+                  counterText: '',
+                ),
+              ),
+            ],
+          ),
         ),
 
         const SizedBox(height: 12),

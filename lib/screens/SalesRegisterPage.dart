@@ -15,7 +15,9 @@ import '../../dataLayer/subareas_repository.dart';
 import '../app_session.dart';
 
 enum _DateFilterType { all, day, month, year, range }
+
 enum _SortType { orderDateDesc, delayDesc }
+
 enum _ApprovalStage { am, gm, ceo }
 
 class _SalesRegisterRow {
@@ -144,10 +146,12 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     final roleId = (widget.roleId ?? AppSession().roleId ?? '').trim();
     return int.tryParse(roleId) ?? 0;
   }
+
   String get _currentUserId => (AppSession().salesPersonId ?? '').trim();
   bool get _canAccessSalesRegister {
     return _currentRole == 4 || _currentUserId == 'SS-1132';
   }
+
   String get _currentUserName {
     final sessionName = (AppSession().salesPersonName ?? '').trim();
     if (sessionName.isNotEmpty) return sessionName;
@@ -225,6 +229,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
           userMap[id] = name.isNotEmpty ? name : id;
         }
       }
+
       final uVal = usersSnap.value;
       if (uVal is Map) {
         uVal.forEach((_, v) {
@@ -238,9 +243,11 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       setState(() {
         _customerByCode
           ..clear()
-          ..addEntries(customers.where((c) => (c.customerCode ?? '').isNotEmpty).map(
-                (c) => MapEntry(c.customerCode!.trim(), c),
-              ));
+          ..addEntries(
+            customers
+                .where((c) => (c.customerCode ?? '').isNotEmpty)
+                .map((c) => MapEntry(c.customerCode!.trim(), c)),
+          );
         _areaById
           ..clear()
           ..addEntries(areas.map((a) => MapEntry(a.areaId, a)));
@@ -290,9 +297,12 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
           .toSet();
     }
 
-    final Set<String> regionSet = allowedRegions?.where((e) => e.isNotEmpty).toSet() ?? {};
-    final Set<String> areaSet = allowedAreas?.where((e) => e.isNotEmpty).toSet() ?? {};
-    final Set<String> subSet = allowedSubareas?.where((e) => e.isNotEmpty).toSet() ?? {};
+    final Set<String> regionSet =
+        allowedRegions?.where((e) => e.isNotEmpty).toSet() ?? {};
+    final Set<String> areaSet =
+        allowedAreas?.where((e) => e.isNotEmpty).toSet() ?? {};
+    final Set<String> subSet =
+        allowedSubareas?.where((e) => e.isNotEmpty).toSet() ?? {};
 
     bool allowed(CustomerEntry c) {
       if (r == '1') {
@@ -318,7 +328,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     final out = <_SalesRegisterRow>[];
     if (raw is! Map) return out;
 
-    double _d(v) => v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0.0;
+    double _d(v) =>
+        v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0.0;
     int _i(v) => v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
     bool _isCd(dynamic v) {
       if (v is bool) return v;
@@ -385,8 +396,11 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         if (orderVal is! Map) return;
 
         final orderDate = _i(orderVal['orderDate']);
-        final dt = orderDate > 0 ? DateTime.fromMillisecondsSinceEpoch(orderDate) : null;
-        final orderConfirmation = (orderVal['orderConfirmation'] ?? '').toString();
+        final dt = orderDate > 0
+            ? DateTime.fromMillisecondsSinceEpoch(orderDate)
+            : null;
+        final orderConfirmation = (orderVal['orderConfirmation'] ?? '')
+            .toString();
         final orderGrandTotal = _d(orderVal['grandTotal']);
         final amApproverId = (orderVal['amApproverID'] ?? '').toString();
         final gmApproverId = (orderVal['gmApproverID'] ?? '').toString();
@@ -402,8 +416,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
           ceoApprovalDate,
           dt,
         );
-        final deliveryStatus =
-            _normDeliveryStatus((orderVal['deliveryStatus'] ?? '').toString());
+        final deliveryStatus = _normDeliveryStatus(
+          (orderVal['deliveryStatus'] ?? '').toString(),
+        );
         final deliveryDate = _dateFromMs(orderVal['deliveryDate']);
         final orderNotes = _notesFromRaw(orderVal['orderNotes']);
         final salesPersonId = (orderVal['salesPersonID'] ?? '').toString();
@@ -413,12 +428,24 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         final ceoApproverName = _userNameById[ceoApproverId] ?? ceoApproverId;
         final salesPersonName = _userNameById[salesPersonId] ?? salesPersonId;
 
-        final customer = _customerByCode[(orderVal['customerCode'] ?? customerCode).toString()];
-        final areaName = customer != null ? (_areaById[customer.areaId]?.areaName ?? '') : '';
-        final subName = customer != null ? (_subareaById[customer.subareaId]?.subareaName ?? '') : '';
+        final customer =
+            _customerByCode[(orderVal['customerCode'] ?? customerCode)
+                .toString()];
+        final areaName = customer != null
+            ? (_areaById[customer.areaId]?.areaName ?? '')
+            : '';
+        final subName = customer != null
+            ? (_subareaById[customer.subareaId]?.subareaName ?? '')
+            : '';
 
         String _firstNonEmpty(List<String?> vals) =>
-            vals.firstWhere((v) => v != null && v.trim().isNotEmpty, orElse: () => '')?.trim() ?? '';
+            vals
+                .firstWhere(
+                  (v) => v != null && v.trim().isNotEmpty,
+                  orElse: () => '',
+                )
+                ?.trim() ??
+            '';
 
         final outletName = customer == null
             ? ''
@@ -472,14 +499,18 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
               category: customer?.category ?? '',
               city: areaName,
               destination: subName,
-              customerCode: (orderVal['customerCode'] ?? customerCode).toString(),
+              customerCode: (orderVal['customerCode'] ?? customerCode)
+                  .toString(),
               outletName: outletName,
               address: address,
               contactPerson: contactPerson,
               contactMobile: contactMobile,
               gstin: customer?.gstNumber ?? '',
               docName: customer?.docName ?? '',
-              docContact: _firstNonEmpty([customer?.docMobileNo1, customer?.docMobileNo2]),
+              docContact: _firstNonEmpty([
+                customer?.docMobileNo1,
+                customer?.docMobileNo2,
+              ]),
               productCode: productCode,
               productName: productName,
               billingType: billingType,
@@ -550,7 +581,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     final filtered = _allRows.where((r) {
       final dt = r.orderDate;
       if (dt == null) return false;
-      if (_allowedCustomerCodes.isNotEmpty && !_allowedCustomerCodes.contains(r.customerCode)) {
+      if (_allowedCustomerCodes.isNotEmpty &&
+          !_allowedCustomerCodes.contains(r.customerCode)) {
         return false;
       }
       if (_undeliveredOnly && r.deliveryStatus != 'Undelivered') {
@@ -566,14 +598,26 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
               dt.day == _selectedDay!.day;
         case _DateFilterType.month:
           if (_selectedMonth == null) return true;
-          return dt.year == _selectedMonth!.year && dt.month == _selectedMonth!.month;
+          return dt.year == _selectedMonth!.year &&
+              dt.month == _selectedMonth!.month;
         case _DateFilterType.year:
           if (_selectedYear == null) return true;
           return dt.year == _selectedYear!.year;
         case _DateFilterType.range:
           if (_rangeStart == null || _rangeEnd == null) return true;
-          final start = DateTime(_rangeStart!.year, _rangeStart!.month, _rangeStart!.day);
-          final end = DateTime(_rangeEnd!.year, _rangeEnd!.month, _rangeEnd!.day, 23, 59, 59);
+          final start = DateTime(
+            _rangeStart!.year,
+            _rangeStart!.month,
+            _rangeStart!.day,
+          );
+          final end = DateTime(
+            _rangeEnd!.year,
+            _rangeEnd!.month,
+            _rangeEnd!.day,
+            23,
+            59,
+            59,
+          );
           return !dt.isBefore(start) && !dt.isAfter(end);
       }
     }).toList();
@@ -601,7 +645,10 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     return filtered;
   }
 
-  Future<void> _pickDate(void Function(DateTime) onPick, {DateTime? initial}) async {
+  Future<void> _pickDate(
+    void Function(DateTime) onPick, {
+    DateTime? initial,
+  }) async {
     final now = DateTime.now();
     final first = DateTime(now.year - 3);
     final last = DateTime(now.year + 1, 12, 31);
@@ -646,7 +693,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
                 children: [
                   TextField(
                     controller: controller,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: const InputDecoration(
                       labelText: 'New rate',
                       border: OutlineInputBorder(),
@@ -698,7 +747,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
 
     final oldRate = r.rate;
     final order = Map<String, dynamic>.from(snap.value as Map);
-    double _d(v) => v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0.0;
+    double _d(v) =>
+        v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0.0;
     int _i(v) => v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
 
     final rate = double.parse(newRate.toStringAsFixed(2));
@@ -776,14 +826,18 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       onTap: canEdit ? () => _showRateEditDialog(r) : null,
     );
   }
+
   Future<void> _updateDelivery(
     _SalesRegisterRow r,
     String status, {
     DateTime? deliveryDate,
   }) async {
-    final normalized = status.toLowerCase() == 'delivered' ? 'Delivered' : 'Undelivered';
-    final effectiveDate =
-        normalized == 'Delivered' ? (deliveryDate ?? DateTime.now()) : null;
+    final normalized = status.toLowerCase() == 'delivered'
+        ? 'Delivered'
+        : 'Undelivered';
+    final effectiveDate = normalized == 'Delivered'
+        ? (deliveryDate ?? DateTime.now())
+        : null;
     await _db.ref('Orders/${r.customerCode}/${r.orderNo}').update({
       'deliveryStatus': normalized,
       'deliveryDate': effectiveDate?.millisecondsSinceEpoch ?? 0,
@@ -826,7 +880,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     if (r.gmApproverName.isEmpty) return false;
     final status = _displayStatus(r.orderConfirmation, r.grandTotal);
     if (status == 'Awaiting CEO Approval') return true;
-    if (status == 'Confirmed' && _gmNeeded(r.grandTotal) && !_ceoNeeded(r.grandTotal)) {
+    if (status == 'Confirmed' &&
+        _gmNeeded(r.grandTotal) &&
+        !_ceoNeeded(r.grandTotal)) {
       return true;
     }
     return false;
@@ -1020,7 +1076,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     VoidCallback? onRetract,
   }) {
     final trimmed = label.trim();
-    final hideLabel = showActions && trimmed.toLowerCase().startsWith('awaiting');
+    final hideLabel =
+        showActions && trimmed.toLowerCase().startsWith('awaiting');
     final display = (trimmed.isEmpty || hideLabel) ? '-' : trimmed;
     final buttonTextStyle = const TextStyle(fontSize: 11);
     return Column(
@@ -1078,31 +1135,31 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
   }
 
   Widget _amApproverCell(_SalesRegisterRow r) => _approverCell(
-        label: _amStatusText(r),
-        showActions: _canActAsAm(r),
-        onApprove: () => _applyApprovalAction(r, _ApprovalStage.am, true),
-        onCancel: () => _applyApprovalAction(r, _ApprovalStage.am, false),
-        showRetract: _canRetractAm(r),
-        onRetract: () => _applyRetractAction(r, _ApprovalStage.am),
-      );
+    label: _amStatusText(r),
+    showActions: _canActAsAm(r),
+    onApprove: () => _applyApprovalAction(r, _ApprovalStage.am, true),
+    onCancel: () => _applyApprovalAction(r, _ApprovalStage.am, false),
+    showRetract: _canRetractAm(r),
+    onRetract: () => _applyRetractAction(r, _ApprovalStage.am),
+  );
 
   Widget _gmApproverCell(_SalesRegisterRow r) => _approverCell(
-        label: _gmStatusText(r),
-        showActions: _canActAsGm(r),
-        onApprove: () => _applyApprovalAction(r, _ApprovalStage.gm, true),
-        onCancel: () => _applyApprovalAction(r, _ApprovalStage.gm, false),
-        showRetract: _canRetractGm(r),
-        onRetract: () => _applyRetractAction(r, _ApprovalStage.gm),
-      );
+    label: _gmStatusText(r),
+    showActions: _canActAsGm(r),
+    onApprove: () => _applyApprovalAction(r, _ApprovalStage.gm, true),
+    onCancel: () => _applyApprovalAction(r, _ApprovalStage.gm, false),
+    showRetract: _canRetractGm(r),
+    onRetract: () => _applyRetractAction(r, _ApprovalStage.gm),
+  );
 
   Widget _ceoApproverCell(_SalesRegisterRow r) => _approverCell(
-        label: _ceoStatusText(r),
-        showActions: _canActAsCeo(r),
-        onApprove: () => _applyApprovalAction(r, _ApprovalStage.ceo, true),
-        onCancel: () => _applyApprovalAction(r, _ApprovalStage.ceo, false),
-        showRetract: _canRetractCeo(r),
-        onRetract: () => _applyRetractAction(r, _ApprovalStage.ceo),
-      );
+    label: _ceoStatusText(r),
+    showActions: _canActAsCeo(r),
+    onApprove: () => _applyApprovalAction(r, _ApprovalStage.ceo, true),
+    onCancel: () => _applyApprovalAction(r, _ApprovalStage.ceo, false),
+    showRetract: _canRetractCeo(r),
+    onRetract: () => _applyRetractAction(r, _ApprovalStage.ceo),
+  );
 
   void _openOrder(_SalesRegisterRow r) {
     final customer = _customerByCode[r.customerCode];
@@ -1114,10 +1171,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     }
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ClientDetailsPage(
-          client: customer,
-          initialOrderId: r.orderNo,
-        ),
+        builder: (_) =>
+            ClientDetailsPage(client: customer, initialOrderId: r.orderNo),
       ),
     );
   }
@@ -1137,7 +1192,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         const SizedBox(width: 6),
         DropdownButtonHideUnderline(
           child: DropdownButton<String>(
-            value: statuses.contains(r.deliveryStatus) ? r.deliveryStatus : 'Undelivered',
+            value: statuses.contains(r.deliveryStatus)
+                ? r.deliveryStatus
+                : 'Undelivered',
             items: statuses
                 .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                 .toList(),
@@ -1169,6 +1226,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
   }
 
   Widget _dateFilterControls() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     String fmt(DateTime? d) => d == null
         ? ''
         : '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -1183,15 +1242,38 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Text('Date Filter:'),
+              Text(
+                'Date Filter:',
+                style: TextStyle(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               DropdownButton<_DateFilterType>(
                 value: _filterType,
+                dropdownColor: colorScheme.surface,
+                style: TextStyle(color: colorScheme.onSurface),
                 items: const [
-                  DropdownMenuItem(value: _DateFilterType.all, child: Text('All')),
-                  DropdownMenuItem(value: _DateFilterType.day, child: Text('Day')),
-                  DropdownMenuItem(value: _DateFilterType.month, child: Text('Month')),
-                  DropdownMenuItem(value: _DateFilterType.year, child: Text('Year')),
-                  DropdownMenuItem(value: _DateFilterType.range, child: Text('Custom Range')),
+                  DropdownMenuItem(
+                    value: _DateFilterType.all,
+                    child: Text('All'),
+                  ),
+                  DropdownMenuItem(
+                    value: _DateFilterType.day,
+                    child: Text('Day'),
+                  ),
+                  DropdownMenuItem(
+                    value: _DateFilterType.month,
+                    child: Text('Month'),
+                  ),
+                  DropdownMenuItem(
+                    value: _DateFilterType.year,
+                    child: Text('Year'),
+                  ),
+                  DropdownMenuItem(
+                    value: _DateFilterType.range,
+                    child: Text('Custom Range'),
+                  ),
                 ],
                 onChanged: (v) {
                   if (v == null) return;
@@ -1200,41 +1282,77 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
               ),
               if (_filterType == _DateFilterType.day)
                 OutlinedButton(
-                  onPressed: () => _pickDate((d) => setState(() => _selectedDay = d), initial: _selectedDay),
-                  child: Text(_selectedDay == null ? 'Pick day' : 'Day: ${fmt(_selectedDay)}'),
+                  onPressed: () => _pickDate(
+                    (d) => setState(() => _selectedDay = d),
+                    initial: _selectedDay,
+                  ),
+                  child: Text(
+                    _selectedDay == null
+                        ? 'Pick day'
+                        : 'Day: ${fmt(_selectedDay)}',
+                  ),
                 ),
               if (_filterType == _DateFilterType.month)
                 OutlinedButton(
                   onPressed: () => _pickDate(
-                    (d) => setState(() => _selectedMonth = DateTime(d.year, d.month, 1)),
+                    (d) => setState(
+                      () => _selectedMonth = DateTime(d.year, d.month, 1),
+                    ),
                     initial: _selectedMonth,
                   ),
-                  child: Text(_selectedMonth == null
-                      ? 'Pick month'
-                      : 'Month: ${_selectedMonth!.month.toString().padLeft(2, '0')}-${_selectedMonth!.year}'),
+                  child: Text(
+                    _selectedMonth == null
+                        ? 'Pick month'
+                        : 'Month: ${_selectedMonth!.month.toString().padLeft(2, '0')}-${_selectedMonth!.year}',
+                  ),
                 ),
               if (_filterType == _DateFilterType.year)
                 OutlinedButton(
                   onPressed: () => _pickDate(
-                    (d) => setState(() => _selectedYear = DateTime(d.year, 1, 1)),
+                    (d) =>
+                        setState(() => _selectedYear = DateTime(d.year, 1, 1)),
                     initial: _selectedYear,
                   ),
-                  child: Text(_selectedYear == null ? 'Pick year' : 'Year: ${_selectedYear!.year}'),
+                  child: Text(
+                    _selectedYear == null
+                        ? 'Pick year'
+                        : 'Year: ${_selectedYear!.year}',
+                  ),
                 ),
               if (_filterType == _DateFilterType.range) ...[
                 OutlinedButton(
-                  onPressed: () => _pickDate((d) => setState(() => _rangeStart = d), initial: _rangeStart),
-                  child: Text(_rangeStart == null ? 'Start date' : 'From: ${fmt(_rangeStart)}'),
+                  onPressed: () => _pickDate(
+                    (d) => setState(() => _rangeStart = d),
+                    initial: _rangeStart,
+                  ),
+                  child: Text(
+                    _rangeStart == null
+                        ? 'Start date'
+                        : 'From: ${fmt(_rangeStart)}',
+                  ),
                 ),
                 OutlinedButton(
-                  onPressed: () => _pickDate((d) => setState(() => _rangeEnd = d), initial: _rangeEnd),
-                  child: Text(_rangeEnd == null ? 'End date' : 'To: ${fmt(_rangeEnd)}'),
+                  onPressed: () => _pickDate(
+                    (d) => setState(() => _rangeEnd = d),
+                    initial: _rangeEnd,
+                  ),
+                  child: Text(
+                    _rangeEnd == null ? 'End date' : 'To: ${fmt(_rangeEnd)}',
+                  ),
                 ),
               ],
               const SizedBox(width: 8),
-              const Text('Sort:'),
+              Text(
+                'Sort:',
+                style: TextStyle(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               DropdownButton<_SortType>(
                 value: _sortType,
+                dropdownColor: colorScheme.surface,
+                style: TextStyle(color: colorScheme.onSurface),
                 items: const [
                   DropdownMenuItem(
                     value: _SortType.orderDateDesc,
@@ -1283,6 +1401,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
   }
 
   Widget _buildTable() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final headers = <String>[
       'Type of Order',
       'Order Status',
@@ -1333,7 +1453,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       final displayStatus = _displayStatus(r.orderConfirmation, r.grandTotal);
       dataRows.add(
         DataRow(
-          color: useAlt ? MaterialStateProperty.all(Colors.grey.shade100) : null,
+          color: useAlt
+              ? WidgetStateProperty.all(colorScheme.surfaceContainerHighest)
+              : null,
           cells: [
             DataCell(Text(r.orderType)),
             DataCell(Text(displayStatus)),
@@ -1389,7 +1511,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         padding: const EdgeInsets.all(16.0),
         child: Container(
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.black12),
+            border: Border.all(color: colorScheme.outlineVariant),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Scrollbar(
@@ -1408,8 +1530,23 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
                     controller: vCtrl,
                     scrollDirection: Axis.vertical,
                     child: DataTable(
-                      headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
-                      columns: headers.map((h) => DataColumn(label: Text(h, style: const TextStyle(fontSize: 12)))).toList(),
+                      headingRowColor: WidgetStateProperty.all(
+                        colorScheme.surfaceContainerHighest,
+                      ),
+                      columns: headers
+                          .map(
+                            (h) => DataColumn(
+                              label: Text(
+                                h,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: colorScheme.onSurface,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
                       rows: dataRows,
                     ),
                   ),
@@ -1426,7 +1563,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
   Widget build(BuildContext context) {
     if (!_canAccessSalesRegister) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         bottomNavigationBar: CommonFooter(),
         body: SafeArea(
           child: Column(
@@ -1445,7 +1582,9 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
               ),
               const Expanded(
                 child: Center(
-                  child: Text('You are not authorized to view the Sales Register.'),
+                  child: Text(
+                    'You are not authorized to view the Sales Register.',
+                  ),
                 ),
               ),
             ],
@@ -1455,7 +1594,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       bottomNavigationBar: CommonFooter(),
       body: SafeArea(
         child: Column(
@@ -1569,7 +1708,8 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
     }
 
     final csv = buffer.toString();
-    final fileName = 'sales_register_${DateTime.now().millisecondsSinceEpoch}.csv';
+    final fileName =
+        'sales_register_${DateTime.now().millisecondsSinceEpoch}.csv';
 
     try {
       if (kIsWeb) {
@@ -1590,10 +1730,14 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
         targetDir = '/storage/emulated/0/Download';
       } else if (Platform.isWindows) {
         final home = Platform.environment['USERPROFILE'] ?? '';
-        targetDir = home.isNotEmpty ? '$home\\Downloads' : Directory.systemTemp.path;
+        targetDir = home.isNotEmpty
+            ? '$home\\Downloads'
+            : Directory.systemTemp.path;
       } else {
         final home = Platform.environment['HOME'] ?? '';
-        targetDir = home.isNotEmpty ? '$home/Downloads' : Directory.systemTemp.path;
+        targetDir = home.isNotEmpty
+            ? '$home/Downloads'
+            : Directory.systemTemp.path;
       }
       final dir = Directory(targetDir);
       if (!await dir.exists()) {
@@ -1602,15 +1746,15 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
       final file = File('${dir.path}/$fileName');
       await file.writeAsString(csv, flush: true);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exported to ${file.path}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Exported to ${file.path}')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
       }
     }
   }

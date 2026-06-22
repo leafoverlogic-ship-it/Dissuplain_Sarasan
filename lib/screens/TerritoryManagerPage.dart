@@ -181,7 +181,7 @@ class _TerritoryManagerPageState extends State<TerritoryManagerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AppCommonHeader(title: 'Territory Manager'),
       body: Center(
         child: ConstrainedBox(

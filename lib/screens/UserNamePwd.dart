@@ -693,7 +693,7 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
           const SizedBox(height: 22),
           Center(
             child: Text(
-              'v1.5.4',
+              'v1.6.3',
               style: TextStyle(
                 fontSize: 12,
                 color: theme.colorScheme.onSurfaceVariant,

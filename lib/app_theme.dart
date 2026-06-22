@@ -27,29 +27,29 @@ class AppTheme {
   static ThemeData _theme(ColorScheme colorScheme) {
     final isDark = colorScheme.brightness == Brightness.dark;
 
-    // 🔑 Background of the whole page (now pure black in dark mode)
     final scaffold = isDark
-        ? const Color(0xFF000000) // pure black
-        : const Color(0xFFF4F7FB);
+      ? const Color(0xFF0B111A)
+      : const Color(0xFFF3F7FA);
 
-    final surface = isDark ? const Color(0xFF111827) : Colors.white;
+    final surface = isDark ? const Color(0xFF121C2B) : Colors.white;
     final subtleSurface = isDark
-        ? const Color(0xFF172033)
+      ? const Color(0xFF192538)
         : const Color(0xFFFBFCFE);
     final elevatedSurface = isDark
-        ? const Color(0xFF18253A)
+      ? const Color(0xFF1E2D45)
         : const Color(0xFFFFFFFF);
     final outline = isDark
-        ? const Color(0xFF334155)
+      ? const Color(0xFF3E4F69)
         : const Color(0xFFDDE4EE);
     final shadow = isDark
-        ? const Color(0x66000000)
-        : const Color(0x140F172A);
+      ? const Color(0x80000000)
+      : const Color(0x1A0F172A);
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: scaffold,
+      canvasColor: scaffold,
       splashFactory: InkSparkle.splashFactory,
       pageTransitionsTheme: PageTransitionsTheme(
         builders: {
@@ -63,17 +63,17 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         elevation: 0,
         centerTitle: false,
-        backgroundColor: surface,
+        backgroundColor: surface.withOpacity(isDark ? 0.9 : 0.98),
         foregroundColor: colorScheme.onSurface,
         surfaceTintColor: Colors.transparent,
       ),
       cardTheme: CardThemeData(
-        color: elevatedSurface,
-        elevation: isDark ? 2 : 2,
+        color: elevatedSurface.withOpacity(isDark ? 0.86 : 1),
+        elevation: isDark ? 4 : 2,
         shadowColor: shadow,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: outline),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: outline.withOpacity(0.75)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -86,22 +86,22 @@ class AppTheme {
           vertical: 14,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: outline),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: colorScheme.primary, width: 1.4),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.8),
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
-          elevation: 0,
+          elevation: isDark ? 1 : 0,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
@@ -109,7 +109,7 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: colorScheme.primary,
           side: BorderSide(color: outline),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
@@ -117,7 +117,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: colorScheme.primary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
@@ -125,10 +125,10 @@ class AppTheme {
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
         elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       bottomAppBarTheme: BottomAppBarThemeData(
-        color: surface,
+        color: surface.withOpacity(isDark ? 0.9 : 0.98),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),
@@ -156,7 +156,7 @@ class AppTheme {
         selectedColor: colorScheme.primaryContainer,
         labelStyle: TextStyle(color: colorScheme.onSurface),
         side: BorderSide(color: outline),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -167,7 +167,17 @@ class AppTheme {
           color: isDark ? const Color(0xFF111827) : Colors.white,
           fontWeight: FontWeight.w600,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.dragged)) {
+            return colorScheme.primary.withOpacity(0.9);
+          }
+          return colorScheme.primary.withOpacity(isDark ? 0.7 : 0.55);
+        }),
+        radius: const Radius.circular(999),
+        thickness: WidgetStateProperty.all(7),
       ),
     );
   }
@@ -188,8 +198,8 @@ class AppThemeToggleButton extends StatelessWidget {
         return AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           decoration: BoxDecoration(
-            color: colorScheme.surface.withOpacity(isDark ? 0.9 : 0.96),
-            borderRadius: BorderRadius.circular(8),
+            color: colorScheme.surface.withOpacity(isDark ? 0.6 : 0.8),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: colorScheme.outlineVariant),
             boxShadow: [
               BoxShadow(

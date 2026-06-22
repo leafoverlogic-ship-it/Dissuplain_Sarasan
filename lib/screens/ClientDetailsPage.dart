@@ -336,7 +336,6 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
 
   // ---- Which keys are editable ----
   final Set<String> _editableKeys = {
-    'GST_Number',
     'Status',
     if ((AppSession().roleId == '4')) 'subareaName',
     'Visit_Days',
@@ -846,9 +845,7 @@ return Scaffold(
                                           } else {
                                             _ctrls[key]!.text = value;
                                           }
-                                          if (key == 'Status' ||
-                                              key == 'Visit_Days' ||
-                                              key == 'BUSINESS_SLAB') {
+                                          if (key == 'Status' || key == 'Visit_Days') {
                                             _dropdownValues[key] = value.isEmpty
                                                 ? null
                                                 : value;
@@ -897,9 +894,7 @@ return Scaffold(
                                       } else {
                                         _ctrls[key]!.text = value;
                                       }
-                                      if (key == 'Status' ||
-                                          key == 'Visit_Days' ||
-                                          key == 'BUSINESS_SLAB') {
+                                      if (key == 'Status' || key == 'Visit_Days') {
                                         _dropdownValues[key] = value.isEmpty
                                             ? null
                                             : value;
@@ -920,6 +915,7 @@ return Scaffold(
                     );
                   }
 
+                  final businessGst = _s(m['Business_GST_Number']);
                   return SingleChildScrollView(
                     child: Column(
                       children: [
@@ -956,9 +952,6 @@ return Scaffold(
                                 _s(m['followupDate']),
                               ),
                             ),
-                            _pair('BUSINESS_SLAB', _s(m['BUSINESS_SLAB'])),
-                            _pair('BUSINESS_CAT', _s(m['BUSINESS_CAT'])),
-                            _pair('GST_Number', _s(m['GST_Number'])),
                             _pair(
                               'Date_of_1st_Call',
                               _formatDateish(
@@ -971,6 +964,24 @@ return Scaffold(
                             _pair(
                               'VISIT_FREQUENCY_In_Days',
                               _s(m['VISIT_FREQUENCY_In_Days']),
+                            ),
+                          ],
+                          itemBuilder: rowBuilder,
+                        ),
+
+                        _BlockSection(
+                          title: 'Business Details',
+                          rows: [
+                            _pair('Business_Name', _s(m['Business_Name'])),
+                            _pair('Business_Address', _s(m['Business_Address'])),
+                            _pair(
+                              'Business_Contact_Person',
+                              _s(m['Business_Contact_Person']),
+                            ),
+                            _pair('Business_Mobile_No', _s(m['Business_Mobile_No'])),
+                            _pair(
+                              'GstNumber',
+                              businessGst.isEmpty ? '—' : businessGst,
                             ),
                           ],
                           itemBuilder: rowBuilder,
@@ -1056,6 +1067,9 @@ return Scaffold(
                             customerCode: code,
                             clientKey: clientKey,
                             visitDays: _s(m['Visit_Days']),
+                            visitFrequencyDays: _s(
+                              m['VISIT_FREQUENCY_In_Days'],
+                            ),
                             currentFollowupRaw: m['followupDate'],
                           ),
                         ),
@@ -1249,6 +1263,7 @@ class _ActivityLogs extends StatefulWidget {
   // NEW:
   final String clientKey; // Clients/<clientKey>
   final String visitDays; // MON..SUN (or empty)
+  final String visitFrequencyDays; // numeric days (or empty)
   final dynamic currentFollowupRaw; // existing followupDate (int or string)
 
   const _ActivityLogs({
@@ -1256,6 +1271,7 @@ class _ActivityLogs extends StatefulWidget {
     required this.customerCode,
     required this.clientKey,
     required this.visitDays,
+    required this.visitFrequencyDays,
     required this.currentFollowupRaw,
     Key? key,
   }) : super(key: key);
@@ -1273,13 +1289,28 @@ class _ActivityLogsState extends State<_ActivityLogs> {
 
   // Follow-up
   DateTime _followupDate = DateTime.now();
+  bool _followupSyncedFromLogs = false;
+  bool _showVisitDayFallbackNote = false;
 
   @override
   void initState() {
     super.initState();
-    // Prefill to next Visit_Days (default MON if blank)
-    final vd = (widget.visitDays.isNotEmpty) ? widget.visitDays : 'MON';
-    _followupDate = _nextWeekday(DateTime.now(), vd);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final freq = int.tryParse(widget.visitFrequencyDays.trim()) ?? 0;
+    final base = today.add(Duration(days: freq > 0 ? freq : 0));
+
+    // Depend on both fields:
+    // 1) first move by Visit Frequency (if provided)
+    // 2) then align to Visit Day (if provided)
+    if (widget.visitDays.trim().isNotEmpty) {
+      _followupDate = _nextWeekdayOnOrAfter(base, widget.visitDays.trim());
+    } else if (freq > 0) {
+      _followupDate = base;
+    } else {
+      // fallback preserves previous behavior when both are missing
+      _followupDate = _nextWeekday(today, 'MON');
+    }
   }
 
   @override
@@ -1315,6 +1346,43 @@ class _ActivityLogsState extends State<_ActivityLogs> {
     final delta = (target - from.weekday + 7) % 7;
     final add = (delta == 0) ? 7 : delta; // always NEXT occurrence
     return DateTime(from.year, from.month, from.day).add(Duration(days: add));
+  }
+
+  DateTime _nextWeekdayOnOrAfter(DateTime from, String dayCode) {
+    final target = _weekdayFromCode(dayCode);
+    final delta = (target - from.weekday + 7) % 7;
+    return DateTime(from.year, from.month, from.day).add(Duration(days: delta));
+  }
+
+  void _syncFollowupFromLogs(List<ActivityLogEntry> logs) {
+    if (_followupSyncedFromLogs) return;
+
+    final hasFollowUpCall = logs.any(
+      (log) => log.type.trim().toLowerCase() == 'follow up call',
+    );
+    final currentFollowup = _parseFollowupRaw(widget.currentFollowupRaw);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isOverdue = currentFollowup != null &&
+        DateTime(
+          currentFollowup.year,
+          currentFollowup.month,
+          currentFollowup.day,
+        ).isBefore(today);
+
+    if (isOverdue && !hasFollowUpCall) {
+      final visitDays = widget.visitDays.trim();
+      if (visitDays.isNotEmpty) {
+        setState(() {
+          _followupDate = _nextWeekday(today, visitDays);
+          _followupSyncedFromLogs = true;
+          _showVisitDayFallbackNote = true;
+        });
+      }
+    } else {
+      _followupSyncedFromLogs = true;
+      _showVisitDayFallbackNote = false;
+    }
   }
 
   int _epochMidnight(DateTime d) =>
@@ -1547,6 +1615,21 @@ class _ActivityLogsState extends State<_ActivityLogs> {
                   ),
                 ),
               ),
+              if (_showVisitDayFallbackNote)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Overdue follow-up missed. Using Visit Day only.',
+                      style: TextStyle(
+                        color: Colors.redAccent.shade700,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
               const SizedBox(height: 12),
               // Message
               TextFormField(
@@ -1591,6 +1674,11 @@ child: Text(
         StreamBuilder<List<ActivityLogEntry>>(
           stream: widget.logsRepo.streamForCustomer(widget.customerCode),
           builder: (context, snap) {
+            if (snap.hasData) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _syncFollowupFromLogs(snap.data!);
+              });
+            }
             if (snap.hasError) {
               return Padding(
                 padding: const EdgeInsets.all(8.0),

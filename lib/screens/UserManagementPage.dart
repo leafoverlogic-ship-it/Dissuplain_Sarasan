@@ -238,6 +238,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   Widget _userCard(Map<String, dynamic> u) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final id = (u['SalesPersonID'] ?? '').toString();
     final dbKey = (u['_key'] ?? id).toString();
     final nameCtl = TextEditingController(text: u['SalesPersonName'] ?? '');
@@ -256,26 +259,37 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final passwordCtl = TextEditingController(text: (u['loginPwd'] ?? '').toString());
     final disabled = u['disabled'] == true;
     final roleIsOne = roleCtl.text.trim() == '1';
+    final cardBase = isDark ? colorScheme.surface : const Color(0xFFE0F2F1);
+    final cardAccent = isDark ? colorScheme.outlineVariant : const Color(0xFF26A69A);
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
       elevation: 4,
-      color: const Color(0xFFE0F2F1),
+      color: cardBase,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: Color(0xFF26A69A), width: 1.2),
+        side: BorderSide(color: cardAccent, width: 1.2),
       ),
       child: Container(
-        decoration: const BoxDecoration(
-          borderRadius: BorderRadius.all(Radius.circular(18)),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F2F1),
-              Color(0xFFB2DFDB),
-            ],
-          ),
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.all(Radius.circular(18)),
+          gradient: isDark
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colorScheme.surface,
+                    colorScheme.surfaceContainerHighest,
+                  ],
+                )
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFE0F2F1),
+                    Color(0xFFB2DFDB),
+                  ],
+                ),
         ),
         padding: const EdgeInsets.all(12.0),
         child: Column(

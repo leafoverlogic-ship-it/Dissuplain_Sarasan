@@ -63,33 +63,7 @@ class _NewClientPageState extends State<NewClientPage> {
   final _customerCodeCtrl =
       TextEditingController(); // auto-generated (read-only)
 
-  // ---------- New required fields ----------
-  // Doctor
-  final _docMobileNo1Ctrl = TextEditingController(); // 10 numeric
-  final _docNameCtrl = TextEditingController(); // 30
-  final _docMobileNo2Ctrl = TextEditingController(); // 10 numeric
-
-  // Institution / Clinic
-  final _instNameCtrl = TextEditingController(); // 30
-  final _instAddr1Ctrl = TextEditingController(); // 30
-  final _instAddr2Ctrl = TextEditingController(); // 30
-  final _instLandmarkCtrl = TextEditingController(); // 30
-  final _instPincodeCtrl = TextEditingController(); // 6 numeric
-
-  // Pharmacy
-  final _phNameCtrl = TextEditingController(); // 30
-  final _phAddr1Ctrl = TextEditingController(); // 30
-  final _phAddr2Ctrl = TextEditingController(); // 30
-  final _phLandmarkCtrl = TextEditingController(); // 30
-  final _phPinCtrl = TextEditingController(); // 6 numeric
-  final _phPersonNameCtrl = TextEditingController(); // 30
-  final _phMobile1Ctrl = TextEditingController(); // 10 numeric
-  final _phMobile2Ctrl = TextEditingController(); // 10 numeric
-
-  // GST
-  final _gstNumberCtrl = TextEditingController(); // 15 (alphanumeric)
-  // Business / Status
-  String? _statusValue; // Active, NA, Hot, Warm, Cold, Prospect
+  // Business
   String? _visitDaysValue; // MON..SUN
   final _visitFreqDaysCtrl = TextEditingController(); // 3 numeric
 
@@ -238,30 +212,7 @@ class _NewClientPageState extends State<NewClientPage> {
     _salesPersonNameCtrl.dispose();
     _customerCodeCtrl.dispose();
 
-    // Doctor
-    _docMobileNo1Ctrl.dispose();
-    _docNameCtrl.dispose();
-    _docMobileNo2Ctrl.dispose();
-
-    // Institution/Clinic
-    _instNameCtrl.dispose();
-    _instAddr1Ctrl.dispose();
-    _instAddr2Ctrl.dispose();
-    _instLandmarkCtrl.dispose();
-    _instPincodeCtrl.dispose();
-
-    // Pharmacy
-    _phNameCtrl.dispose();
-    _phAddr1Ctrl.dispose();
-    _phAddr2Ctrl.dispose();
-    _phLandmarkCtrl.dispose();
-    _phPinCtrl.dispose();
-    _phPersonNameCtrl.dispose();
-    _phMobile1Ctrl.dispose();
-    _phMobile2Ctrl.dispose();
-
-    // GST/Business
-    _gstNumberCtrl.dispose();
+    // Business
     _visitFreqDaysCtrl.dispose();
 
     super.dispose();
@@ -762,11 +713,6 @@ class _NewClientPageState extends State<NewClientPage> {
     FilteringTextInputFormatter.digitsOnly,
     LengthLimitingTextInputFormatter(3),
   ];
-  List<TextInputFormatter> _gstAlnum15() => [
-    FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-    LengthLimitingTextInputFormatter(15),
-  ];
-
   // ---------- Save ----------
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -818,24 +764,6 @@ class _NewClientPageState extends State<NewClientPage> {
       return;
     }
 
-    if (_instNameCtrl.text.trim().isEmpty) {
-      if (_phNameCtrl.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter either Institute Name or Pharmacy.'),
-          ),
-        );
-        return;
-      }
-    } else {
-      if (_address1Ctrl.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter Institute Address 1.')),
-        );
-        return;
-      }
-    }
-
     final customerId = _nextCustomerId!;
     final customerKey = customerId.toString();
 
@@ -874,36 +802,10 @@ class _NewClientPageState extends State<NewClientPage> {
       'PinCode': _pinCodeCtrl.text.trim(),
       'DateOfOpening': _dateOfOpening?.toIso8601String(),
 
-      // --- NEW: Doctor in Institution ---
-      'Institution_OR_Clinic_Name': _instNameCtrl.text.trim(),
-      'Institution_OR_Clinic_Address_1': _instAddr1Ctrl.text.trim(),
-      'Institution_OR_Clinic_Address_2': _instAddr2Ctrl.text.trim(),
-      'Institution_OR_Clinic_Landmark': _instLandmarkCtrl.text.trim(),
-      'Institution_OR_Clinic_Pin_Code': _instPincodeCtrl.text.trim(),
-      'Doc_Name': _docNameCtrl.text.trim(),
-      'Doc_Mobile_No_1': _docMobileNo1Ctrl.text.trim(),
-      'Doc_Mobile_No_2': _docMobileNo2Ctrl.text.trim(),
-
-      // --- NEW: Pharmacy ---
-      'Pharmacy_Name': _phNameCtrl.text.trim(),
-      'Pharmacy_Address_1': _phAddr1Ctrl.text.trim(),
-      'Pharmacy_Address_2': _phAddr2Ctrl.text.trim(),
-      'Pharmacy_Landmark': _phLandmarkCtrl.text.trim(),
-      'Pharmacy_Pin_Code': _phPinCtrl.text.trim(),
-      'Pharmacy_Person_Name': _phPersonNameCtrl.text.trim(),
-      'Pharmacy_Mobile_No_1': _phMobile1Ctrl.text.trim(),
-      'Pharmacy_Mobile_No_2': _phMobile2Ctrl.text.trim(),
-
-      // --- NEW: GST / Status / Business / Visit ---
-      'GST_Number': _gstNumberCtrl.text.trim().toUpperCase(),
-      'Status': (_statusValue == '(blank)') ? '' : (_statusValue ?? ''),
+      // --- Business / Visit ---
       'Visit_Days': (_visitDaysValue == '(blank)')
           ? ''
           : (_visitDaysValue ?? ''),
-
-      'BUSINESS_SLAB': '',
-
-        'BUSINESS_CAT': '',
       'VISIT_FREQUENCY_In_Days': _visitFreqDaysCtrl.text.trim(),
 
       // Meta
@@ -940,7 +842,7 @@ class _NewClientPageState extends State<NewClientPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -1231,227 +1133,9 @@ class _NewClientPageState extends State<NewClientPage> {
 
                 const SizedBox(height: 16),
 
-                // ---- Doctor ----
-                _SectionHeader(title: 'Doctor'),
+                // ---- Visit Details ----
+                _SectionHeader(title: 'Visit Details'),
                 const SizedBox(height: 8),
-                TextFormField(
-                  controller: _docNameCtrl,
-                  inputFormatters: _limit30(),
-                  decoration: const InputDecoration(
-                    labelText: 'Doc Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _docMobileNo1Ctrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: _digits10(),
-                        decoration: const InputDecoration(
-                          labelText: 'Doc Mobile No 1',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _docMobileNo2Ctrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: _digits10(),
-                        decoration: const InputDecoration(
-                          labelText: 'Doc Mobile No 2',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                // ---- Institution / Clinic ----
-                _SectionHeader(title: 'Institution / Clinic'),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _instNameCtrl,
-                  inputFormatters: _limit30(),
-
-                  decoration: const InputDecoration(
-                    labelText: 'Institution Or Clinic Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _instAddr1Ctrl,
-                  inputFormatters: _limit30(),
-
-                  decoration: const InputDecoration(
-                    labelText: 'Institution Or Clinic Address 1',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _instAddr2Ctrl,
-                  inputFormatters: _limit30(),
-
-                  decoration: const InputDecoration(
-                    labelText: 'Institution Or ClinicAddress 2',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _instLandmarkCtrl,
-                  inputFormatters: _limit30(),
-
-                  decoration: const InputDecoration(
-                    labelText: 'Institution Or Clinic Landmark',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _instPincodeCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: _digits6(),
-
-                  decoration: const InputDecoration(
-                    labelText: 'Institution Or Clinic Pincode',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // ---- Pharmacy ----
-                _SectionHeader(title: 'Pharmacy'),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _phNameCtrl,
-                  inputFormatters: _limit30(),
-                  decoration: const InputDecoration(
-                    labelText: 'Pharmacy Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phAddr1Ctrl,
-                  inputFormatters: _limit30(),
-                  decoration: const InputDecoration(
-                    labelText: 'Pharmacy Address 1',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phAddr2Ctrl,
-                  inputFormatters: _limit30(),
-                  decoration: const InputDecoration(
-                    labelText: 'Pharmacy Address 2',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phLandmarkCtrl,
-                  inputFormatters: _limit30(),
-                  decoration: const InputDecoration(
-                    labelText: 'Pharmacy Landmark',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phPinCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: _digits6(),
-                  decoration: const InputDecoration(
-                    labelText: 'Pharmacy Pincode',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phPersonNameCtrl,
-                  inputFormatters: _limit30(),
-                  decoration: const InputDecoration(
-                    labelText: 'Pharmacy Person Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _phMobile1Ctrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: _digits10(),
-                        decoration: const InputDecoration(
-                          labelText: 'Pharmacy Mobile No 1',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _phMobile2Ctrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: _digits10(),
-                        decoration: const InputDecoration(
-                          labelText: 'PharmacyMobileNo2',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                // ---- GST / Status / Visit / Business ----
-                _SectionHeader(title: 'Business & Status'),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _gstNumberCtrl,
-                  inputFormatters: _gstAlnum15(),
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    labelText: 'GstNumber',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Status',
-                    border: OutlineInputBorder(),
-                  ),
-
-                  value: _statusValue,
-                  items: const [
-                    DropdownMenuItem(value: 'Active', child: Text('Active')),
-                    DropdownMenuItem(
-                      value: 'Prospect',
-                      child: Text('Prospect'),
-                    ),
-                    DropdownMenuItem(value: 'Hot', child: Text('Hot')),
-                    DropdownMenuItem(value: 'Warm', child: Text('Warm')),
-                    DropdownMenuItem(value: 'Cold', child: Text('Cold')),
-                    DropdownMenuItem(value: 'NA', child: Text('NA')),
-                  ],
-                  onChanged: (v) => setState(() => _statusValue = v),
-                ),
-                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   isExpanded: true,
                   decoration: const InputDecoration(

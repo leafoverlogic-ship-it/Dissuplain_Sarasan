@@ -15,6 +15,7 @@ class CustomerEntry {
   final String? customerCode; // customerCode
 
   // Names / Category
+  final String? clientName;        // ClientName (Institution Name)
   final String? salesPersonName;   // Sales_Person / Sales_Person_ / SalesPersonName
   final String? category;          // Category
   final String? typeOfInstitution; // Type_of_Institution / TypeOfInstitution
@@ -61,6 +62,7 @@ class CustomerEntry {
     required this.subareaId,
     this.customerId,
     this.customerCode,
+    this.clientName,
     this.salesPersonName,
     this.category,
     this.typeOfInstitution,
@@ -111,6 +113,7 @@ class CustomerEntry {
       customerId: n('Customer_ID'),
       customerCode: n('customerCode'),
 
+      clientName: n('ClientName'),
       salesPersonName: _salesPerson(),
       category: n('Category'),
       typeOfInstitution: n('Type_of_Institution') ?? n('TypeOfInstitution'),

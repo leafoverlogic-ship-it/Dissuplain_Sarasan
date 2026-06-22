@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'dart:io';
-import 'dart:collection';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html; // Web only
 
@@ -45,12 +44,16 @@ class ClientsSummaryPage extends StatefulWidget {
 
 class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
   bool _beatPlanMode = false;
+  int _selectedBeatWeekday = DateTime.now().weekday;
   String _regionId = '';
   String _areaId = '';
   String _subareaId = '';
+  String _bandaWiseUserName = '';
 
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _pageScrollCtrl = ScrollController();
   String _searchTerm = '';
+  bool _showScrollActions = false;
 
   final _db = FirebaseDatabase.instance;
   late final _regionsRepo = RegionsRepository(db: _db);
@@ -76,6 +79,15 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
     super.initState();
 
     _beatPlanMode = widget.roleId != '4';
+    _selectedBeatWeekday = DateTime.now().weekday;
+
+    _pageScrollCtrl.addListener(() {
+      if (!_pageScrollCtrl.hasClients) return;
+      final shouldShow = _pageScrollCtrl.offset > 260;
+      if (shouldShow != _showScrollActions) {
+        setState(() => _showScrollActions = shouldShow);
+      }
+    });
 
     _regionsRepo.streamRegions().listen(
       (rows) {
@@ -190,6 +202,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _pageScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -519,17 +532,19 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       pool = pool.where((c) => _s(c.subareaId) == _subareaId);
     }
 
-    if (_beatPlanMode && widget.roleId != '4') {
-      final now = DateTime.now();
-      final cutoff = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+    if (_beatPlanMode) {
+      final targetWeekday = _selectedBeatWeekday;
+      pool = pool.where((c) => _matchesVisitDay(c.visitDays, targetWeekday));
+    }
 
-      bool isDueTodayOrEarlier(CustomerEntry c) {
-        final dt = _parseAnyDate(c.followupDate);
-        if (dt == null) return false;
-        return !dt.isAfter(cutoff);
-      }
-
-      pool = pool.where(isDueTodayOrEarlier);
+    if (_canUseBandaWiseFilter && _bandaWiseUserName.isNotEmpty) {
+      final selectedName = _bandaWiseUserName.trim().toLowerCase();
+      pool = pool.where((c) {
+        final directName = (c.salesPersonName ?? '').trim();
+        final fallbackName = _salesPersonName(c.subareaId).trim();
+        final effectiveName = directName.isNotEmpty ? directName : fallbackName;
+        return effectiveName.toLowerCase() == selectedName;
+      });
     }
 
     if (_searchTerm.isNotEmpty) {
@@ -560,6 +575,77 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
   String _digitsOnly(String? input) {
     if (input == null) return '';
     return input.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  static const List<String> _weekdayLabels = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
+
+  String _weekdayLabel(int weekday) {
+    if (weekday < 1 || weekday > 7) return 'Today';
+    return _weekdayLabels[weekday - 1];
+  }
+
+  String _weekdayCode(int weekday) {
+    switch (weekday) {
+      case DateTime.monday:
+        return 'MON';
+      case DateTime.tuesday:
+        return 'TUE';
+      case DateTime.wednesday:
+        return 'WED';
+      case DateTime.thursday:
+        return 'THU';
+      case DateTime.friday:
+        return 'FRI';
+      case DateTime.saturday:
+        return 'SAT';
+      case DateTime.sunday:
+        return 'SUN';
+      default:
+        return 'MON';
+    }
+  }
+
+  bool get _canUseBandaWiseFilter {
+    final role = widget.roleId.trim();
+    return role == '2' ||
+        role == '3' ||
+        role == '4' ||
+        role == '5' ||
+        role == '6' ||
+        role == '7';
+  }
+
+  bool _matchesVisitDay(String? visitDays, int weekday) {
+    final normalized = (visitDays ?? '').trim().toUpperCase();
+    if (normalized.isEmpty) return false;
+
+    final targetCode = _weekdayCode(weekday);
+    final targetLabel = _weekdayLabel(weekday).toUpperCase();
+    final tokens = normalized
+        .split(RegExp(r'[\s,;/|]+'))
+        .where((part) => part.trim().isNotEmpty)
+        .toList();
+
+    if (tokens.isEmpty) {
+      return normalized == targetCode || normalized == targetLabel;
+    }
+
+    return tokens.any((token) {
+      final t = token.trim().toUpperCase();
+      return t == targetCode || t == targetLabel || t.startsWith(targetCode);
+    });
+  }
+
+  void _setBeatPlanToToday() {
+    _selectedBeatWeekday = DateTime.now().weekday;
   }
 
   DateTime? _parseAnyDate(dynamic v) {
@@ -693,10 +779,9 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       }
 
       final now = DateTime.now();
-      final fileName =
-          _beatPlanMode ? 'BeatPlan_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv'
-           :'ClientsList_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv'
-          ;
+      final fileName = _beatPlanMode
+          ? 'BeatPlan_${_weekdayCode(_selectedBeatWeekday)}_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv'
+          : 'ClientsList_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv';
       final csvData = sb.toString();
 
       // Save and export using robust logic
@@ -754,11 +839,13 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
         'Pharmacy_Person_Name',
         'Pharmacy_Mobile_No_1',
         'Pharmacy_Mobile_No_2',
-        'GST_Number',
+        'Business_GST_Number',
         'Status',
         'Visit_Days',
-        'BUSINESS_SLAB',
-        'BUSINESS_CAT',
+        'Business_Name',
+        'Business_Address',
+        'Business_Contact_Person',
+        'Business_Mobile_No',
         'VISIT_FREQUENCY_In_Days',
         'customerCode',
       ];
@@ -846,211 +933,448 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
     }
   }
 
+  Future<void> _scrollToTop() async {
+    if (!_pageScrollCtrl.hasClients) return;
+    await _pageScrollCtrl.animateTo(
+      0,
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Future<void> _scrollToBottom() async {
+    if (!_pageScrollCtrl.hasClients) return;
+    await _pageScrollCtrl.animateTo(
+      _pageScrollCtrl.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 620),
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  Widget _buildGlassPanel({required Widget child}) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            scheme.surface.withOpacity(isDark ? 0.58 : 0.84),
+            scheme.surfaceContainerHighest.withOpacity(isDark ? 0.46 : 0.68),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.outlineVariant.withOpacity(0.85)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.26 : 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final clients = _filteredClients();
-    final titleText = _beatPlanMode
-        ? 'Beat Plan'
-        : 'Clients List';
-return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              CommonHeader(
-                pageTitle: 'Clients Summary',
-                userName: widget.salesPersonName,
-                onLogout: widget.onLogout,
-                roleId: widget.roleId,
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (value) =>
-                      setState(() => _searchTerm = value.trim()),
-                  decoration: InputDecoration(
-                    labelText: 'Search by client code or mobile number',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchTerm.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _searchTerm = '');
-                            },
-                          ),
-                    border: const OutlineInputBorder(),
-                  ),
-                  textInputAction: TextInputAction.search,
-                  keyboardType: TextInputType.text,
-                ),
-              ),
-              _rowDropdown(
-                label: 'Region',
-                value: _regionId,
-                items: _lr
-                    ? const [
-                        DropdownMenuItem(value: '', child: Text('Loading...')),
-                      ]
-                    : (_er != null
-                          ? const [
-                              DropdownMenuItem(value: '', child: Text('Error')),
-                            ]
-                          : _regionItems()),
-                onChanged: (id) => setState(() {
-                  _regionId = id ?? '';
-                  _areaId = '';
-                  _subareaId = '';
-                }),
-              ),
-              _rowDropdown(
-                label: 'Area',
-                value: _areaId,
-                items: _la
-                    ? const [
-                        DropdownMenuItem(value: '', child: Text('Loading...')),
-                      ]
-                    : (_ea != null
-                          ? const [
-                              DropdownMenuItem(value: '', child: Text('Error')),
-                            ]
-                          : _areaItems()),
-                onChanged: (id) => setState(() {
-                  _areaId = id ?? '';
-                  _subareaId = '';
-                }),
-              ),
-              _rowDropdown(
-                label: 'Sub-Area',
-                value: _subareaId,
-                items: _ls
-                    ? const [
-                        DropdownMenuItem(value: '', child: Text('Loading...')),
-                      ]
-                    : (_es != null
-                          ? const [
-                              DropdownMenuItem(value: '', child: Text('Error')),
-                            ]
-                          : _subAreaItems()),
-                onChanged: (id) => setState(() {
-                  _subareaId = id ?? '';
-                }),
-              ),
-              const Divider(),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.people_alt_outlined,
-                      size: 18,
-                      color: Colors.grey,
-                    ),
-                    SizedBox(width: 8),
-                    OutlinedButton.icon(
-                      onPressed: () =>
-                          setState(() => _beatPlanMode = !_beatPlanMode),
-                      icon: Icon(
-                        _beatPlanMode ? Icons.event_available : Icons.list,
-                      ),
-                      label: Text('$titleText (${clients.length})'),
-                    ),
-                    //Text(
-                    //  'Clients List (${clients.length})',
-                    //  style: TextStyle(
-                    //    fontSize: 16,
-                    //    fontWeight: FontWeight.bold,
-                    //  ),
-                    //),
-                    SizedBox(width: 8),
+    final titleText = _beatPlanMode ? 'Beat Plan' : 'Clients List';
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-                    /*ElevatedButton.icon(
-                      onPressed: _openFilteredClientsTable,
-                      icon: const Icon(Icons.table_chart),
-                      label: const Text('Show Filtered Clients'),
-                    ),*/
-                    ElevatedButton(
-                      onPressed: () async {
-                        await _exportFilteredClientCsv(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: Text(
-                        ' Export $titleText ',
-                        style: TextStyle(color: Colors.white),
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Positioned(
+              top: -90,
+              right: -70,
+              child: IgnorePointer(
+                child: Container(
+                  width: 230,
+                  height: 230,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        colorScheme.primary.withOpacity(0.28),
+                        colorScheme.primary.withOpacity(0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -130,
+              left: -80,
+              child: IgnorePointer(
+                child: Container(
+                  width: 250,
+                  height: 250,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        colorScheme.tertiary.withOpacity(0.22),
+                        colorScheme.tertiary.withOpacity(0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Scrollbar(
+              controller: _pageScrollCtrl,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                controller: _pageScrollCtrl,
+                child: Column(
+                  children: [
+                    CommonHeader(
+                      pageTitle: 'Clients Summary',
+                      userName: widget.salesPersonName,
+                      onLogout: widget.onLogout,
+                      roleId: widget.roleId,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                      child: _buildGlassPanel(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (value) =>
+                                setState(() => _searchTerm = value.trim()),
+                            decoration: InputDecoration(
+                              labelText:
+                                  'Search by client code or mobile number',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: _searchTerm.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      icon: const Icon(Icons.clear),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() => _searchTerm = '');
+                                      },
+                                    ),
+                              border: const OutlineInputBorder(),
+                            ),
+                            textInputAction: TextInputAction.search,
+                            keyboardType: TextInputType.text,
+                          ),
+                        ),
                       ),
                     ),
-                    if (widget.roleId == "4" || widget.roleId == '7') ...[
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: _exportClientsRawSelectedColumnsCsv,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        icon: const Icon(Icons.file_download),
-                        label: const Text(
-                          ' Export Clients Master ',
-                          style: TextStyle(color: Colors.white),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _buildGlassPanel(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            children: [
+                              _rowDropdown(
+                                label: 'Region',
+                                value: _regionId,
+                                items: _lr
+                                    ? const [
+                                        DropdownMenuItem(
+                                          value: '',
+                                          child: Text('Loading...'),
+                                        ),
+                                      ]
+                                    : (_er != null
+                                          ? const [
+                                              DropdownMenuItem(
+                                                value: '',
+                                                child: Text('Error'),
+                                              ),
+                                            ]
+                                          : _regionItems()),
+                                onChanged: (id) => setState(() {
+                                  _regionId = id ?? '';
+                                  _areaId = '';
+                                  _subareaId = '';
+                                }),
+                              ),
+                              _rowDropdown(
+                                label: 'Area',
+                                value: _areaId,
+                                items: _la
+                                    ? const [
+                                        DropdownMenuItem(
+                                          value: '',
+                                          child: Text('Loading...'),
+                                        ),
+                                      ]
+                                    : (_ea != null
+                                          ? const [
+                                              DropdownMenuItem(
+                                                value: '',
+                                                child: Text('Error'),
+                                              ),
+                                            ]
+                                          : _areaItems()),
+                                onChanged: (id) => setState(() {
+                                  _areaId = id ?? '';
+                                  _subareaId = '';
+                                }),
+                              ),
+                              _rowDropdown(
+                                label: 'Sub-Area',
+                                value: _subareaId,
+                                items: _ls
+                                    ? const [
+                                        DropdownMenuItem(
+                                          value: '',
+                                          child: Text('Loading...'),
+                                        ),
+                                      ]
+                                    : (_es != null
+                                          ? const [
+                                              DropdownMenuItem(
+                                                value: '',
+                                                child: Text('Error'),
+                                              ),
+                                            ]
+                                          : _subAreaItems()),
+                                onChanged: (id) => setState(() {
+                                  _subareaId = id ?? '';
+                                }),
+                              ),
+                              if (_canUseBandaWiseFilter)
+                                _rowDropdown(
+                                  label: 'Salesperson Wise',
+                                  value: _bandaWiseUserName,
+                                  items: _lu
+                                      ? const [
+                                          DropdownMenuItem(
+                                            value: '',
+                                            child: Text('Loading...'),
+                                          ),
+                                        ]
+                                      : (_eu != null
+                                            ? const [
+                                                DropdownMenuItem(
+                                                  value: '',
+                                                  child: Text('Error'),
+                                                ),
+                                              ]
+                                            : _bandaWiseItems()),
+                                  onChanged: (name) => setState(() {
+                                    _bandaWiseUserName = name ?? '';
+                                  }),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ],
+                    ),
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _buildGlassPanel(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Chip(
+                                avatar: const Icon(Icons.people_alt_outlined, size: 16),
+                                label: Text('${clients.length} Clients'),
+                              ),
+                              Chip(
+                                avatar: Icon(
+                                  _beatPlanMode
+                                      ? Icons.event_available_outlined
+                                      : Icons.list_alt_outlined,
+                                  size: 16,
+                                ),
+                                label: Text(
+                                  _beatPlanMode ? 'Mode: Beat Plans' : 'Mode: Clients List',
+                                ),
+                              ),
+                              Chip(
+                                avatar: const Icon(Icons.calendar_today, size: 16),
+                                label: Text(_weekdayLabel(_selectedBeatWeekday)),
+                              ),
+                              SegmentedButton<int>(
+                                segments: const <ButtonSegment<int>>[
+                                  ButtonSegment<int>(
+                                    value: 0,
+                                    icon: Icon(Icons.list_alt_outlined),
+                                    label: Text('Clients List'),
+                                  ),
+                                  ButtonSegment<int>(
+                                    value: 1,
+                                    icon: Icon(Icons.event_available_outlined),
+                                    label: Text('Beat Plans'),
+                                  ),
+                                ],
+                                selected: <int>{_beatPlanMode ? 1 : 0},
+                                showSelectedIcon: false,
+                                onSelectionChanged: (selection) {
+                                  if (selection.isEmpty) return;
+                                  setState(() {
+                                    _beatPlanMode = selection.first == 1;
+                                  });
+                                },
+                              ),
+                              if (_beatPlanMode)
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: 180),
+                                  child: DropdownButtonFormField<int>(
+                                    value: _selectedBeatWeekday,
+                                    isDense: true,
+                                    items: List.generate(
+                                      _weekdayLabels.length,
+                                      (index) {
+                                        final weekday = index + 1;
+                                        return DropdownMenuItem<int>(
+                                          value: weekday,
+                                          child: Text(_weekdayLabels[index]),
+                                        );
+                                      },
+                                    ),
+                                    onChanged: (value) {
+                                      if (value == null) return;
+                                      setState(() => _selectedBeatWeekday = value);
+                                    },
+                                    decoration: InputDecoration(
+                                      labelText: 'Beat day',
+                                      isDense: true,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 10,
+                                          ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  await _exportFilteredClientCsv(context);
+                                },
+                                icon: const Icon(Icons.download),
+                                label: Text('Export $titleText'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: _openFilteredClientsTable,
+                                icon: const Icon(Icons.table_chart_outlined),
+                                label: const Text('Quick Table View'),
+                              ),
+                              if (widget.roleId == "4" || widget.roleId == '7')
+                                ElevatedButton.icon(
+                                  onPressed: _exportClientsRawSelectedColumnsCsv,
+                                  icon: const Icon(Icons.inventory_2_outlined),
+                                  label: const Text('Export Clients Master'),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    if (_ec != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Failed to load clients: $_ec',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      )
+                    else if (_lc)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Loading clients...'),
+                        ),
+                      )
+                    else
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: clients.length,
+                        itemBuilder: (_, i) => TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: 1),
+                          duration: Duration(milliseconds: 260 + (i % 8) * 70),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, t, child) => Transform.translate(
+                            offset: Offset(0, (1 - t) * 24),
+                            child: Opacity(opacity: t, child: child),
+                          ),
+                          child: _clientPlate(clients[i]),
+                        ),
+                      ),
+                    const SizedBox(height: 110),
                   ],
                 ),
               ),
-              if (_ec != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'Failed to load clients: $_ec',
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                )
-              else if (_lc)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text('Loading clients...'),
-                  ),
-                )
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: clients.length,
-                  itemBuilder: (_, i) => _clientPlate(clients[i]),
-                ),
-              const SizedBox(height: 80),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => NewClientPage(
-                allowedRegionIds: widget.allowedRegionIds,
-                allowedAreaIds: widget.allowedAreaIds,
-                allowedSubareaIds: widget.allowedSubareaIds,
-                roleId: widget.roleId,
-                salesPersonName: widget.salesPersonName,
-                allAccess: widget.allAccess,
-              ),
-            ),
-          );
-        },
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: _showScrollActions
+                ? Column(
+                    key: const ValueKey('scroll_actions'),
+                    children: [
+                      FloatingActionButton.small(
+                        heroTag: 'to_top_btn',
+                        onPressed: _scrollToTop,
+                        child: const Icon(Icons.keyboard_double_arrow_up),
+                      ),
+                      const SizedBox(height: 10),
+                      FloatingActionButton.small(
+                        heroTag: 'to_bottom_btn',
+                        onPressed: _scrollToBottom,
+                        child: const Icon(Icons.keyboard_double_arrow_down),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                  )
+                : const SizedBox.shrink(key: ValueKey('no_scroll_actions')),
+          ),
+          FloatingActionButton.extended(
+            heroTag: 'new_client_btn',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => NewClientPage(
+                    allowedRegionIds: widget.allowedRegionIds,
+                    allowedAreaIds: widget.allowedAreaIds,
+                    allowedSubareaIds: widget.allowedSubareaIds,
+                    roleId: widget.roleId,
+                    salesPersonName: widget.salesPersonName,
+                    allAccess: widget.allAccess,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('New Client'),
+          ),
+        ],
       ),
       bottomNavigationBar: CommonFooter(),
     );
@@ -1262,6 +1586,24 @@ return Scaffold(
     ];
   }
 
+  List<DropdownMenuItem<String>> _bandaWiseItems() {
+    final names = <String>{};
+    for (final u in _users) {
+      final n = u.salesPersonName.trim();
+      if (n.isNotEmpty) names.add(n);
+    }
+
+    final sorted = names.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    return [
+      const DropdownMenuItem(value: '', child: Text('All')),
+      ...sorted.map(
+        (name) => DropdownMenuItem(value: name, child: Text(name)),
+      ),
+    ];
+  }
+
   Widget _rowDropdown({
     required String label,
     required String value,
@@ -1300,14 +1642,15 @@ return Scaffold(
   }
 
   Widget _clientPlate(CustomerEntry c) {
-    final title = (c.instituteOrClinicName?.isNotEmpty == true)
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final title = (c.clientName?.isNotEmpty == true)
+        ? c.clientName!
+        : (c.instituteOrClinicName?.isNotEmpty == true)
         ? c.instituteOrClinicName!
         : (c.pharmacyName?.isNotEmpty == true ? c.pharmacyName! : '(No name)');
     final code = c.customerCode ?? '—';
     final category = c.category ?? '—';
-    final status = c.status ?? '—';
-    final slab = c.businessSlab ?? '';
-    final bcat = c.businessCat ?? '';
     final region = _regionName(c.regionId);
     final area = _areaName(c.areaId);
     final sub = _subareaName(c.subareaId);
@@ -1315,120 +1658,112 @@ return Scaffold(
     final follow = _fmtYmd(c.followupDate);
 
     return InkWell(
+      borderRadius: BorderRadius.circular(18),
       onTap: () {
         Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => ClientDetailsPage(client: c)));
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-          boxShadow: const [
-            BoxShadow(blurRadius: 2, spreadRadius: 0, color: Color(0x14000000)),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        child: _buildGlassPanel(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  code,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    '$region | $area | $sub',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(category, style: const TextStyle(fontSize: 14)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    'Business Slab: $slab',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(status, style: const TextStyle(fontSize: 14)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    'Business Cat: $bcat',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Previous Order Value:',
-                      style: TextStyle(fontSize: 14),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: colorScheme.primary.withOpacity(0.5),
+                        ),
+                      ),
+                      child: Text(
+                        code,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '$region • $area • $sub',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorScheme.secondaryContainer.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        category,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 9),
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today_outlined,
+                        size: 16, color: colorScheme.primary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Followup date: $follow',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(Icons.person_outline,
+                        size: 16, color: colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 6),
                     Text(
-                      'Previous Order Date:',
-                      style: TextStyle(fontSize: 14),
+                      spName.isEmpty ? 'Unassigned' : spName,
+                      style: theme.textTheme.bodyMedium,
                     ),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Followup date: $follow',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                Text(spName, style: const TextStyle(fontSize: 14)),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );

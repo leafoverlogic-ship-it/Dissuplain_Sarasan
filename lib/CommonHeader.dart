@@ -1,13 +1,7 @@
 // lib/CommonHeader.dart
 import 'package:flutter/material.dart';
-import 'package:dissuplain_app_web_mobile/screens/Phone_Entry.dart';
-
 import 'screens/Clients_Summary.dart';
-import './screens/Dashboard.dart';
-import './screens/Attendance.dart';
 import './screens/Admin.dart';
-import 'screens/DataMigrationScreen.dart';
-import 'screens/TerritoryManagerPage.dart';
 import 'screens/UserNamePwd.dart'; // <-- added fallback login
 import 'screens/SalesRegisterPage.dart';
 import 'app_session.dart';
@@ -71,18 +65,29 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.surface.withOpacity(
+              theme.brightness == Brightness.dark ? 0.74 : 0.94,
+            ),
+            colorScheme.surfaceContainerHighest.withOpacity(
+              theme.brightness == Brightness.dark ? 0.62 : 0.78,
+            ),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(
-              theme.brightness == Brightness.dark ? 0.22 : 0.07,
+              theme.brightness == Brightness.dark ? 0.26 : 0.09,
             ),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
           ),
         ],
         border: Border(
-          bottom: BorderSide(color: colorScheme.outlineVariant),
+          bottom: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.9)),
         ),
       ),
       child: Column(

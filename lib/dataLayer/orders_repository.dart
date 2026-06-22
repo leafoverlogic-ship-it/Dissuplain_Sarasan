@@ -351,6 +351,11 @@ class OrdersRepository {
     String ceoApproverID = '',
     required double grandTotal,
     required Map<String, Map<String, dynamic>> productsDetail,
+    required String businessName,
+    required String businessAddress,
+    required String gstNumber,
+    required String contactPerson,
+    required String mobileNo,
   }) async {
     final now = DateTime.now();
     final orderID = _makeOrderId(now);
@@ -364,6 +369,13 @@ class OrdersRepository {
       'orderType': orderType,
       'grandTotal': grandTotal,
       'productsDetail': productsDetail, // { productCode: {...fields...}, ... }
+      'businessDetails': {
+        'businessName': businessName,
+        'businessAddress': businessAddress,
+        'gstNumber': gstNumber,
+        'contactPerson': contactPerson,
+        'mobileNo': mobileNo,
+      },
       'salesPersonID': salesPersonID,
       'amApproverID': amApproverID,
       'gmApproverID': gmApproverID,
@@ -374,6 +386,32 @@ class OrdersRepository {
       'deliveryStatus': 'Undelivered',
       'deliveryDate': 0,
     });
+
+    final clientsQuery = await FirebaseDatabase.instance
+        .ref('Clients')
+        .orderByChild('customerCode')
+        .equalTo(customerCode)
+        .get();
+
+    String? clientKey;
+    for (final child in clientsQuery.children) {
+      if (child.key != null && child.key!.isNotEmpty) {
+        clientKey = child.key!;
+        break;
+      }
+    }
+
+    if (clientKey != null) {
+      await FirebaseDatabase.instance.ref('Clients/$clientKey').update({
+        'Business_Name': businessName,
+        'Business_Address': businessAddress,
+        'Business_Contact_Person': contactPerson,
+        'Business_Mobile_No': mobileNo,
+        'Business_GST_Number': gstNumber,
+        'GST_Number': gstNumber,
+        'Business_Details_Updated_At': now.millisecondsSinceEpoch,
+      });
+    }
   }
 
   Future<void> updateConfirmation(
