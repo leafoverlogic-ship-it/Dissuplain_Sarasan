@@ -4,23 +4,34 @@ class ProductRow {
   final String productCode;
   final String productName;
   final double mrp;
+  final double rate;
   final int freePer10;
+  final String? firebaseKey;
+
+  static double resolveRate(ProductRow product) {
+    return product.rate;
+  }
 
   ProductRow({
     required this.productCode,
     required this.productName,
     required this.mrp,
+    required this.rate,
     required this.freePer10,
+    this.firebaseKey,
   });
 
-  factory ProductRow.fromMap(Map m) {
+  factory ProductRow.fromMap(Map m, {String? fallbackCode, String? firebaseKey}) {
     double _d(v) => double.tryParse(v?.toString() ?? '') ?? 0.0;
     int _i(v) => int.tryParse(v?.toString() ?? '') ?? 0;
+    final rawCode = (m['productCode'] ?? fallbackCode ?? '').toString().trim();
     return ProductRow(
-      productCode: (m['productCode'] ?? '').toString(),
+      productCode: rawCode,
       productName: (m['productName'] ?? '').toString(),
       mrp: _d(m['MRP'] ?? m['mrp']),
+      rate: _d(m['Rate'] ?? m['rate']),
       freePer10: _i(m['freeQtyPer10'] ?? m['freeQty'] ?? 0),
+      firebaseKey: firebaseKey,
     );
   }
 }
@@ -228,16 +239,171 @@ class OrdersRepository {
     'Distributors',
   );
 
+  static List<ProductRow> filterProductsForCategory({
+    required List<ProductRow> products,
+    required List<ProductCategoryRow> productCategoryRows,
+    required String categoryCode,
+  }) {
+    if (products.isEmpty) return const <ProductRow>[];
+
+    final normalizedCategory = categoryCode.trim().toUpperCase();
+    if (normalizedCategory.isEmpty || productCategoryRows.isEmpty) {
+      return [...products]..
+          sort((a, b) => a.productName.compareTo(b.productName));
+    }
+
+    final mappedCodes = <String>{};
+    for (final row in productCategoryRows) {
+      if (row.categoryCode.trim().toUpperCase() == normalizedCategory) {
+        mappedCodes.add(row.productCode.trim().toUpperCase());
+      }
+    }
+
+    if (mappedCodes.isEmpty) {
+      return [...products]..
+          sort((a, b) => a.productName.compareTo(b.productName));
+    }
+
+    final allKnownCodes = <String>{
+      for (final row in productCategoryRows)
+        row.productCode.trim().toUpperCase(),
+    };
+
+    final visible = products.where((p) {
+      final code = p.productCode.trim().toUpperCase();
+      return mappedCodes.contains(code) || !allKnownCodes.contains(code);
+    }).toList();
+
+    visible.sort((a, b) => a.productName.compareTo(b.productName));
+    return visible;
+  }
+
   Stream<List<ProductRow>> streamProducts() {
     return _productsRef.onValue.map((event) {
       final out = <ProductRow>[];
       for (final c in event.snapshot.children) {
         final v = c.value;
-        if (v is Map) out.add(ProductRow.fromMap(v));
+        if (v is Map) {
+          out.add(
+            ProductRow.fromMap(
+              Map<String, dynamic>.from(v),
+              fallbackCode: c.key,
+              firebaseKey: c.key,
+            ),
+          );
+        }
       }
       out.sort((a, b) => a.productCode.compareTo(b.productCode));
       return out;
     });
+  }
+
+  Future<String?> _findProductStorageKey(String productCode) async {
+    final code = productCode.trim();
+    if (code.isEmpty) return null;
+
+    final snap = await _productsRef.orderByChild('productCode').equalTo(code).get();
+    if (!snap.exists) return null;
+
+    for (final child in snap.children) {
+      if (child.key != null && child.key!.isNotEmpty) {
+        return child.key!;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _removeDuplicateProducts(String productCode, {String? keepKey}) async {
+    final code = productCode.trim();
+    if (code.isEmpty) return;
+
+    final snap = await _productsRef.orderByChild('productCode').equalTo(code).get();
+    if (!snap.exists) return;
+
+    for (final child in snap.children) {
+      final key = child.key;
+      if (key != null && key.isNotEmpty && key != keepKey) {
+        await _productsRef.child(key).remove();
+      }
+    }
+  }
+
+  Future<void> addProduct({
+    required String productCode,
+    required String productName,
+    required double mrp,
+    required double rate,
+  }) async {
+    final code = productCode.trim();
+    if (code.isEmpty) return;
+
+    final existingKey = await _findProductStorageKey(code);
+    final targetKey = existingKey ?? code;
+
+    await _productsRef.child(targetKey).set({
+      'productCode': code,
+      'productName': productName.trim(),
+      'MRP': mrp,
+      'Rate': rate,
+      'mrp': mrp,
+      'rate': rate,
+    });
+
+    await _removeDuplicateProducts(code, keepKey: targetKey);
+  }
+
+  Future<void> updateProduct({
+    required String oldProductCode,
+    required String productCode,
+    required String productName,
+    required double mrp,
+    required double rate,
+  }) async {
+    final oldCode = oldProductCode.trim();
+    final newCode = productCode.trim();
+    if (oldCode.isEmpty || newCode.isEmpty) return;
+
+    final oldStorageKey = await _findProductStorageKey(oldCode);
+    final existingNewCodeKey = await _findProductStorageKey(newCode);
+    final targetKey = existingNewCodeKey ?? oldStorageKey ?? newCode;
+
+    if (oldCode.toLowerCase() != newCode.toLowerCase() && oldStorageKey != null && oldStorageKey != targetKey) {
+      await _productsRef.child(oldStorageKey).remove();
+    }
+
+    await _productsRef.child(targetKey).set({
+      'productCode': newCode,
+      'productName': productName.trim(),
+      'MRP': mrp,
+      'Rate': rate,
+      'mrp': mrp,
+      'rate': rate,
+    });
+
+    await _removeDuplicateProducts(newCode, keepKey: targetKey);
+  }
+
+  Future<void> deleteProduct({required String productCode, String? storageKey}) async {
+    final code = productCode.trim();
+    if (code.isEmpty) return;
+
+    if (storageKey != null && storageKey.trim().isNotEmpty) {
+      await _productsRef.child(storageKey.trim()).remove();
+    }
+
+    final snap = await _productsRef.orderByChild('productCode').equalTo(code).get();
+    if (!snap.exists) return;
+
+    for (final child in snap.children) {
+      final key = child.key;
+      if (key != null && key.isNotEmpty) {
+        await _productsRef.child(key).remove();
+      }
+    }
+  }
+
+  Future<void> clearAllProducts() async {
+    await _productsRef.remove();
   }
 
   Stream<List<ProductCategoryRow>> streamProductCategories() {
@@ -356,6 +522,7 @@ class OrdersRepository {
     required String gstNumber,
     required String contactPerson,
     required String mobileNo,
+    bool isFirstOrder = false,
   }) async {
     final now = DateTime.now();
     final orderID = _makeOrderId(now);
@@ -402,7 +569,7 @@ class OrdersRepository {
     }
 
     if (clientKey != null) {
-      await FirebaseDatabase.instance.ref('Clients/$clientKey').update({
+      final updateData = {
         'Business_Name': businessName,
         'Business_Address': businessAddress,
         'Business_Contact_Person': contactPerson,
@@ -410,7 +577,12 @@ class OrdersRepository {
         'Business_GST_Number': gstNumber,
         'GST_Number': gstNumber,
         'Business_Details_Updated_At': now.millisecondsSinceEpoch,
-      });
+      };
+      // Set Date_of_Opening to the date of the first order
+      if (isFirstOrder) {
+        updateData['Date_of_Opening'] = now.millisecondsSinceEpoch;
+      }
+      await FirebaseDatabase.instance.ref('Clients/$clientKey').update(updateData);
     }
   }
 
@@ -506,6 +678,8 @@ class OrdersRepository {
           ),
         );
       });
+      // Sort products by name alphabetically
+      out.sort((a, b) => a.productName.compareTo(b.productName));
       return out;
     } catch (_) {
       return const <OrderDisplayLine>[];

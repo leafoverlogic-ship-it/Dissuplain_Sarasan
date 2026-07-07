@@ -1,9 +1,11 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import '../app_session.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../dataLayer/users_repository.dart';
-import 'Clients_Summary.dart';
 import 'PasswordResetPage.dart';
+import 'WelcomeLoadingPage.dart';
 import 'password_reset_utils.dart';
 
 class UserNamePwdPage extends StatefulWidget {
@@ -358,20 +360,13 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
       );
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => ClientsSummaryPage(
+          builder: (_) => WelcomeLoadingPage(
             roleId: roleId,
-            salesPersonName: name,
+            userName: name,
             allAccess: allAccess,
             allowedRegionIds: regionIds,
             allowedAreaIds: areaIds,
             allowedSubareaIds: subareaIds,
-            onLogout: () {
-              AppSession().clear();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const UserNamePwdPage()),
-                (route) => false,
-              );
-            },
           ),
         ),
       );
@@ -399,23 +394,25 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
       labelText: label,
       prefixIcon: Icon(icon, color: theme.colorScheme.primary),
       filled: true,
-      fillColor: isDark ? const Color(0xFF172033) : const Color(0xFFFBFCFE),
+      fillColor: isDark
+          ? const Color(0xFF1A283F).withOpacity(0.78)
+          : const Color(0xFFFFFFFF).withOpacity(0.74),
       labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(color: outline),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.4),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.8),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(color: Color(0xFFDC2626)),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1.4),
       ),
     );
@@ -423,39 +420,75 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
 
   Widget _buildBrandPanel() {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: theme.brightness == Brightness.dark
-            ? const Color(0xFF0B1220)
-            : const Color(0xFF0F172A),
-        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF13233A), const Color(0xFF0E1728)]
+              : [const Color(0xFFEEF7F4), const Color(0xFFD8EBE4)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.9),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(theme.brightness == Brightness.dark ? 0.35 : 0.12),
             blurRadius: 24,
             offset: const Offset(0, 16),
           ),
+          BoxShadow(
+            color: Colors.white.withOpacity(isDark ? 0.06 : 0.7),
+            blurRadius: 14,
+            offset: const Offset(-6, -6),
+          ),
         ],
       ),
-      child: Image.asset(
-        'assets/images/Dissuplain_Image.png',
-        fit: BoxFit.cover,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'assets/images/Dissuplain_Image.png',
+            fit: BoxFit.cover,
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withOpacity(isDark ? 0.35 : 0.18),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildMobileBrandImage() {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       height: 180,
       padding: const EdgeInsets.all(8),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: theme.brightness == Brightness.dark
-            ? const Color(0xFF0B1220)
-            : const Color(0xFF0F172A),
-        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF12223A), const Color(0xFF0D182A)]
+              : [const Color(0xFFF0F7F3), const Color(0xFFDDEDE6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Image.asset(
         'assets/images/Dissuplain_Image.png',
@@ -503,9 +536,18 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
     return Container(
       padding: EdgeInsets.all(compact ? 22 : 32),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outlineVariant),
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.surface.withOpacity(isDark ? 0.72 : 0.88),
+            colorScheme.surfaceContainerHighest.withOpacity(
+              isDark ? 0.56 : 0.74,
+            ),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.9)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(isDark ? 0.32 : 0.10),
@@ -514,10 +556,14 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
           Row(
             children: [
               Container(
@@ -525,8 +571,8 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
                 height: 52,
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceVariant,
-                  borderRadius: BorderRadius.circular(8),
+                  color: theme.colorScheme.surfaceVariant.withOpacity(0.86),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: theme.colorScheme.outlineVariant),
                 ),
                 child: Image.asset('assets/images/Sarasan_Logo.png'),
@@ -555,6 +601,23 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
                     ),
                   ],
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Chip(
+                avatar: const Icon(Icons.security_outlined, size: 16),
+                label: const Text('Secure Login'),
+                visualDensity: VisualDensity.compact,
+              ),
+              Chip(
+                avatar: const Icon(Icons.bolt_outlined, size: 16),
+                label: const Text('Fast Access'),
+                visualDensity: VisualDensity.compact,
               ),
             ],
           ),
@@ -693,7 +756,7 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
           const SizedBox(height: 22),
           Center(
             child: Text(
-              'v1.6.3',
+              'v1.8.0',
               style: TextStyle(
                 fontSize: 12,
                 color: theme.colorScheme.onSurfaceVariant,
@@ -701,7 +764,9 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
               ),
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -709,54 +774,113 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 820;
-            final horizontalPadding = constraints.maxWidth < 420 ? 16.0 : 24.0;
-            final verticalPadding = isWide ? 32.0 : 20.0;
-            final availableHeight =
-                constraints.maxHeight - (verticalPadding * 2);
-            final minContentHeight = availableHeight > 0
-                ? availableHeight
-                : 0.0;
-            final widePanelHeight = minContentHeight
-                .clamp(620.0, 720.0)
-                .toDouble();
-
-            return SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
-                vertical: verticalPadding,
-              ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: minContentHeight),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: isWide ? 980 : 460),
-                    child: isWide
-                        ? SizedBox(
-                            height: widePanelHeight,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(child: _buildBrandPanel()),
-                                const SizedBox(width: 24),
-                                SizedBox(
-                                  width: 430,
-                                  child: _buildLoginPanel(compact: false),
-                                ),
-                              ],
-                            ),
-                          )
-                        : _buildLoginPanel(compact: true),
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF081019), const Color(0xFF111C2D)]
+                : [const Color(0xFFE6F2EE), const Color(0xFFF9FBFC)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -140,
+              right: -80,
+              child: IgnorePointer(
+                child: Container(
+                  width: 300,
+                  height: 300,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        theme.colorScheme.primary.withOpacity(0.30),
+                        theme.colorScheme.primary.withOpacity(0),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            );
-          },
+            ),
+            Positioned(
+              bottom: -120,
+              left: -100,
+              child: IgnorePointer(
+                child: Container(
+                  width: 320,
+                  height: 320,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        theme.colorScheme.tertiary.withOpacity(0.24),
+                        theme.colorScheme.tertiary.withOpacity(0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 820;
+                  final horizontalPadding = constraints.maxWidth < 420
+                      ? 16.0
+                      : 24.0;
+                  final verticalPadding = isWide ? 32.0 : 20.0;
+                  final availableHeight =
+                      constraints.maxHeight - (verticalPadding * 2);
+                  final minContentHeight = availableHeight > 0
+                      ? availableHeight
+                      : 0.0;
+                  final widePanelHeight = minContentHeight
+                      .clamp(620.0, 720.0)
+                      .toDouble();
+
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                      vertical: verticalPadding,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: minContentHeight),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: isWide ? 980 : 460,
+                          ),
+                          child: isWide
+                              ? SizedBox(
+                                  height: widePanelHeight,
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Expanded(child: _buildBrandPanel()),
+                                      const SizedBox(width: 24),
+                                      SizedBox(
+                                        width: 430,
+                                        child: _buildLoginPanel(compact: false),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : _buildLoginPanel(compact: true),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

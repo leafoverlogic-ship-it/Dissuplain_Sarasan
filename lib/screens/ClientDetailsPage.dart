@@ -14,6 +14,8 @@ import '../../businessLogic/OrderSection_ExistingOrder.dart';
 import '../CommonHeader.dart';
 import '../CommonFooter.dart';
 import '../app_session.dart';
+import '../utils/activity_log_form_logic.dart';
+import '../utils/client_detail_field_resolver.dart';
 
 class ClientDetailsPage extends StatefulWidget {
   final CustomerEntry client; // carries region/area/subarea IDs + customerCode
@@ -298,7 +300,30 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
 
   // ---------- UI helpers (no boxes until editing) ----------
   static String _pretty(String key) {
-    // replace underscores with spaces and Title Case the words
+    switch (key) {
+      case 'ClientName':
+        return 'Institution Name';
+      case 'Address1':
+        return 'Address 1';
+      case 'Address2':
+        return 'Address 2';
+      case 'Contact_Person_1_Name':
+        return 'Doctor/Contact Person';
+      case 'Contact_Person_1_Phone':
+        return 'Phone Number';
+      case 'Contact_Person_1_Whatsapp':
+        return 'Whatsapp Number';
+      case 'DateOfOpening':
+        return 'Date of Opening';
+      case 'Date_of_1st_Call':
+        return 'Date of First Call';
+      case 'Followup Date':
+      case 'followupDate':
+        return 'Latest Follow-up Date';
+      default:
+        break;
+    }
+
     final k = key.replaceAll('_', ' ');
     final parts = k.split(' ');
     final buf = StringBuffer();
@@ -339,33 +364,21 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
     'Status',
     if ((AppSession().roleId == '4')) 'subareaName',
     'Visit_Days',
-    //'BUSINESS_SLAB', //this is auto-generated, hence, cant be modified
-    //'BUSINESS_CAT', //is derived & non-editable
     'VISIT_FREQUENCY_In_Days',
-    'Date_of_1st_Call',
-    'Opening_Month',
-    'Type_of_Institution',
-    'Date_of_Opening',
-    'Institution_OR_Clinic_Name',
-    'Institution_OR_Clinic_Address_1',
-    'Institution_OR_Clinic_Address_2',
-    'Institution_OR_Clinic_Landmark',
-    'Institution_OR_Clinic_Pin_Code',
-    'Doc_Name',
-    'Doc_Mobile_No_1',
-    'Doc_Mobile_No_2',
-    'Pharmacy_Name',
-    'Pharmacy_Address_1',
-    'Pharmacy_Address_2',
-    'Pharmacy_Landmark',
-    'Pharmacy_Pin_Code',
-    'Pharmacy_Person_Name',
-    'Pharmacy_Mobile_No_1',
-    'Pharmacy_Mobile_No_2',
+    'ClientName',
+    'Address1',
+    'Address2',
+    'Contact_Person_1_Name',
+    'Contact_Person_1_Phone',
+    'Contact_Person_1_Whatsapp',
+    'DateOfOpening',
     'Followup Date',
   };
 
-  bool _isEditable(String key) => !_noEditByRole && _editableKeys.contains(key);
+  bool _isEditable(String key) {
+    if (key == 'VISIT_FREQUENCY_In_Days') return true;
+    return !_noEditByRole && _editableKeys.contains(key);
+  }
 
   Future<List<DropdownMenuItem<String>>> buildSubAreaDropdownItems(
     String regionId,
@@ -655,6 +668,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
     // Date pickers
     if (key == 'Date_of_1st_Call' ||
         key == 'Date_of_Opening' ||
+        key == 'DateOfOpening' ||
         key == 'Opening_Month' ||
         key == 'Followup Date') {
       return _wrapEditor(
@@ -664,7 +678,6 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
           isMonthOnly: key == 'Opening_Month',
           onPicked: (formatted) async {
             if (key == 'Followup Date') {
-              // 'YYYY-MM-DD' -> epoch midnight
               final parts = formatted.split('-');
               final y = int.tryParse(parts[0]) ?? 0;
               final mo = (parts.length > 1) ? int.tryParse(parts[1]) ?? 1 : 1;
@@ -672,6 +685,10 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
               final epoch = DateTime(y, mo, d).millisecondsSinceEpoch;
               await _db.ref('Clients/$clientKey').update({
                 'followupDate': epoch,
+              });
+            } else if (key == 'DateOfOpening') {
+              await _db.ref('Clients/$clientKey').update({
+                'DateOfOpening': formatted,
               });
             } else {
               await _db.ref('Clients/$clientKey').update({key: formatted});
@@ -690,7 +707,10 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
         FilteringTextInputFormatter.digitsOnly,
         LengthLimitingTextInputFormatter(6),
       ];
-    } else if (key.endsWith('Mobile_No_1') || key.endsWith('Mobile_No_2')) {
+    } else if (key == 'Contact_Person_1_Phone' ||
+        key == 'Contact_Person_1_Whatsapp' ||
+        key.endsWith('Mobile_No_1') ||
+        key.endsWith('Mobile_No_2')) {
       fmts = <TextInputFormatter>[
         FilteringTextInputFormatter.digitsOnly,
         LengthLimitingTextInputFormatter(10),
@@ -928,21 +948,67 @@ return Scaffold(
                             _pair('Subarea Name', subName),
                             _pair('Category', _s(m['Category'])),
                             _pair(
-                              'Type_of_Institution',
-                              _s(m['Type_of_Institution'] ?? m['TypeOfInstitution']),
-                            ),
-                            _pair(
-                              'Opening_Month',
+                              'ClientName',
                               _formatDateish(
-                                'Opening_Month',
-                                _s(m['Opening_Month']),
+                                'ClientName',
+                                resolveClientDetailValue(m, [
+                                  'ClientName',
+                                  'Institution_OR_Clinic_Name',
+                                  'Pharmacy_Name',
+                                ]),
                               ),
                             ),
                             _pair(
-                              'Date_of_Opening',
+                              'Address1',
+                              resolveClientDetailValue(m, [
+                                'Address1',
+                                'Institution_OR_Clinic_Address_1',
+                                'Pharmacy_Address_1',
+                              ]),
+                            ),
+                            _pair(
+                              'Address2',
+                              resolveClientDetailValue(m, [
+                                'Address2',
+                                'Institution_OR_Clinic_Address_2',
+                                'Pharmacy_Address_2',
+                              ]),
+                            ),
+                            _pair(
+                              'Contact_Person_1_Name',
+                              resolveClientDetailValue(m, [
+                                'Contact_Person_1_Name',
+                                'Doc_Name',
+                                'Pharmacy_Person_Name',
+                              ]),
+                            ),
+                            _pair(
+                              'Contact_Person_1_Phone',
+                              resolveClientDetailValue(m, [
+                                'Contact_Person_1_Phone',
+                                'Doc_Mobile_No_1',
+                                'Pharmacy_Mobile_No_1',
+                              ]),
+                            ),
+                            _pair(
+                              'Contact_Person_1_Whatsapp',
+                              resolveClientDetailValue(m, [
+                                'Contact_Person_1_Whatsapp',
+                                'Doc_Mobile_No_2',
+                                'Pharmacy_Mobile_No_2',
+                                'Contact_Person_1_Phone',
+                                'Doc_Mobile_No_1',
+                                'Pharmacy_Mobile_No_1',
+                              ]),
+                            ),
+                            _pair(
+                              'DateOfOpening',
                               _formatDateish(
-                                'Date_of_Opening',
-                                _s(m['Date_of_Opening']),
+                                'DateOfOpening',
+                                resolveClientDetailValue(m, [
+                                  'DateOfOpening',
+                                  'Date_of_Opening',
+                                ]),
                               ),
                             ),
                             _pair(
@@ -956,14 +1022,19 @@ return Scaffold(
                               'Date_of_1st_Call',
                               _formatDateish(
                                 'Date_of_1st_Call',
-                                _s(m['Date_of_1st_Call']),
+                                resolveClientDetailValue(m, [
+                                  'Date_of_1st_Call',
+                                  'DateOfFirstCall',
+                                ]),
                               ),
                             ),
                             _pair('Status', _s(m['Status'])),
                             _pair('Visit_Days', _s(m['Visit_Days'])),
                             _pair(
                               'VISIT_FREQUENCY_In_Days',
-                              _s(m['VISIT_FREQUENCY_In_Days']),
+                              normalizeVisitFrequencyValue(
+                                _s(m['VISIT_FREQUENCY_In_Days']),
+                              ),
                             ),
                           ],
                           itemBuilder: rowBuilder,
@@ -987,79 +1058,6 @@ return Scaffold(
                           itemBuilder: rowBuilder,
                         ),
 
-                        _BlockSection(
-                          title: 'Institution / Clinic',
-                          rows: [
-                            _pair(
-                              'Institution_OR_Clinic_Name',
-                              _s(m['Institution_OR_Clinic_Name']),
-                            ),
-                            _pair(
-                              'Institution_OR_Clinic_Address_1',
-                              _s(m['Institution_OR_Clinic_Address_1']),
-                            ),
-                            _pair(
-                              'Institution_OR_Clinic_Address_2',
-                              _s(m['Institution_OR_Clinic_Address_2']),
-                            ),
-                            _pair(
-                              'Institution_OR_Clinic_Landmark',
-                              _s(m['Institution_OR_Clinic_Landmark']),
-                            ),
-                            _pair(
-                              'Institution_OR_Clinic_Pin_Code',
-                              _s(m['Institution_OR_Clinic_Pin_Code']),
-                            ),
-                          ],
-                          itemBuilder: rowBuilder,
-                        ),
-
-                        _BlockSection(
-                          title: 'Doctor',
-                          rows: [
-                            _pair('Doc_Name', _s(m['Doc_Name'])),
-                            _pair('Doc_Mobile_No_1', _s(m['Doc_Mobile_No_1'])),
-                            _pair('Doc_Mobile_No_2', _s(m['Doc_Mobile_No_2'])),
-                          ],
-                          itemBuilder: rowBuilder,
-                        ),
-
-                        _BlockSection(
-                          title: 'Pharmacy',
-                          rows: [
-                            _pair('Pharmacy_Name', _s(m['Pharmacy_Name'])),
-                            _pair(
-                              'Pharmacy_Address_1',
-                              _s(m['Pharmacy_Address_1']),
-                            ),
-                            _pair(
-                              'Pharmacy_Address_2',
-                              _s(m['Pharmacy_Address_2']),
-                            ),
-                            _pair(
-                              'Pharmacy_Landmark',
-                              _s(m['Pharmacy_Landmark']),
-                            ),
-                            _pair(
-                              'Pharmacy_Pin_Code',
-                              _s(m['Pharmacy_Pin_Code']),
-                            ),
-                            _pair(
-                              'Pharmacy_Person_Name',
-                              _s(m['Pharmacy_Person_Name']),
-                            ),
-                            _pair(
-                              'Pharmacy_Mobile_No_1',
-                              _s(m['Pharmacy_Mobile_No_1']),
-                            ),
-                            _pair(
-                              'Pharmacy_Mobile_No_2',
-                              _s(m['Pharmacy_Mobile_No_2']),
-                            ),
-                          ],
-                          itemBuilder: rowBuilder,
-                        ),
-
                         _Section(
                           title: 'Activity Logs',
                           child: _ActivityLogs(
@@ -1067,10 +1065,14 @@ return Scaffold(
                             customerCode: code,
                             clientKey: clientKey,
                             visitDays: _s(m['Visit_Days']),
-                            visitFrequencyDays: _s(
-                              m['VISIT_FREQUENCY_In_Days'],
+                            visitFrequencyDays: normalizeVisitFrequencyValue(
+                              _s(m['VISIT_FREQUENCY_In_Days']),
                             ),
                             currentFollowupRaw: m['followupDate'],
+                            currentFirstCallRaw: resolveClientDetailValue(m, [
+                              'Date_of_1st_Call',
+                              'DateOfFirstCall',
+                            ]),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -1265,6 +1267,7 @@ class _ActivityLogs extends StatefulWidget {
   final String visitDays; // MON..SUN (or empty)
   final String visitFrequencyDays; // numeric days (or empty)
   final dynamic currentFollowupRaw; // existing followupDate (int or string)
+  final dynamic currentFirstCallRaw; // existing Date_of_1st_Call / DateOfFirstCall
 
   const _ActivityLogs({
     required this.logsRepo,
@@ -1273,6 +1276,7 @@ class _ActivityLogs extends StatefulWidget {
     required this.visitDays,
     required this.visitFrequencyDays,
     required this.currentFollowupRaw,
+    required this.currentFirstCallRaw,
     Key? key,
   }) : super(key: key);
 
@@ -1286,11 +1290,13 @@ class _ActivityLogsState extends State<_ActivityLogs> {
   DateTime _activityDateTime = DateTime.now();
   final TextEditingController _messageCtrl = TextEditingController();
   String? _response;
+  bool _hasExistingLogs = false;
 
   // Follow-up
   DateTime _followupDate = DateTime.now();
   bool _followupSyncedFromLogs = false;
   bool _showVisitDayFallbackNote = false;
+  bool _firstCallBackfillChecked = false;
 
   @override
   void initState() {
@@ -1354,12 +1360,52 @@ class _ActivityLogsState extends State<_ActivityLogs> {
     return DateTime(from.year, from.month, from.day).add(Duration(days: delta));
   }
 
+  bool _isMissingFirstCallRaw(dynamic raw) {
+    if (raw == null) return true;
+    if (raw is int) return false;
+    final s = raw.toString().trim();
+    if (s.isEmpty) return true;
+    if (s.toLowerCase() == 'null') return true;
+    return false;
+  }
+
+  void _maybeBackfillFirstCallFromLogs(List<ActivityLogEntry> logs) {
+    if (_firstCallBackfillChecked) return;
+    _firstCallBackfillChecked = true;
+
+    if (!_isMissingFirstCallRaw(widget.currentFirstCallRaw)) return;
+
+    final newCalls = logs
+        .where((l) => l.type.trim().toLowerCase() == 'new call')
+        .toList();
+    if (newCalls.isEmpty) return;
+
+    newCalls.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    final firstNewCallDate = newCalls.first.dateTime;
+
+    FirebaseDatabase.instance
+        .ref('Clients/${widget.clientKey}')
+        .update({'Date_of_1st_Call': _fmt(firstNewCallDate)});
+  }
+
   void _syncFollowupFromLogs(List<ActivityLogEntry> logs) {
+    _maybeBackfillFirstCallFromLogs(logs);
+
     if (_followupSyncedFromLogs) return;
 
     final hasFollowUpCall = logs.any(
       (log) => log.type.trim().toLowerCase() == 'follow up call',
     );
+    final hasExistingLogs = logs.isNotEmpty;
+    if (_hasExistingLogs != hasExistingLogs) {
+      setState(() {
+        _hasExistingLogs = hasExistingLogs;
+        _type = ActivityLogFormState.resolveType(
+          hasExistingLogs: hasExistingLogs,
+          currentType: _type,
+        );
+      });
+    }
     final currentFollowup = _parseFollowupRaw(widget.currentFollowupRaw);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -1464,9 +1510,14 @@ class _ActivityLogsState extends State<_ActivityLogs> {
   Future<void> _submitLog() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final resolvedType = ActivityLogFormState.resolveType(
+      hasExistingLogs: _hasExistingLogs,
+      currentType: _type,
+    );
+
     await widget.logsRepo.addLog(
       customerCode: widget.customerCode,
-      type: _type,
+      type: resolvedType,
       message: _messageCtrl.text.trim(),
       dateTime: _activityDateTime,
       userId: (AppSession().salesPersonId ?? '').trim(),
@@ -1479,6 +1530,11 @@ class _ActivityLogsState extends State<_ActivityLogs> {
       'followupDate': _epochMidnight(_followupDate),
     };
     if (prev != null) updates['lastFollowupDate'] = _epochMidnight(prev);
+    if (resolvedType.trim().toLowerCase() == 'new call' &&
+        (widget.currentFollowupRaw == null ||
+            _parseFollowupRaw(widget.currentFollowupRaw) == null)) {
+      updates['Date_of_1st_Call'] = _fmt(_activityDateTime);
+    }
 
     await FirebaseDatabase.instance
         .ref('Clients/${widget.clientKey}')
@@ -1503,27 +1559,44 @@ class _ActivityLogsState extends State<_ActivityLogs> {
               Row(
                 children: [
                   // Type
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _type,
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'New Call',
-                          child: Text('New Call'),
+                  if (ActivityLogFormState.shouldShowTypeSelector(hasExistingLogs: _hasExistingLogs))
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _type,
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'New Call',
+                            child: Text('New Call'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Follow Up Call',
+                            child: Text('Follow Up Call'),
+                          ),
+                        ],
+                        onChanged: (v) => setState(() => _type = v ?? 'New Call'),
+                        decoration: const InputDecoration(
+                          labelText: 'Type',
+                          isDense: true,
+                          border: OutlineInputBorder(),
                         ),
-                        DropdownMenuItem(
-                          value: 'Follow Up Call',
-                          child: Text('Follow Up Call'),
-                        ),
-                      ],
-                      onChanged: (v) => setState(() => _type = v ?? 'New Call'),
-                      decoration: const InputDecoration(
-                        labelText: 'Type',
-                        isDense: true,
-                        border: OutlineInputBorder(),
                       ),
                     ),
-                  ),
+                  if (!ActivityLogFormState.shouldShowTypeSelector(hasExistingLogs: _hasExistingLogs))
+                    Expanded(
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Type',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                        child: Text(
+                          ActivityLogFormState.resolveType(
+                            hasExistingLogs: true,
+                            currentType: _type,
+                          ),
+                        ),
+                      ),
+                    ),
                   const SizedBox(width: 12),
                   // Response
                   Expanded(
@@ -1621,7 +1694,7 @@ class _ActivityLogsState extends State<_ActivityLogs> {
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Overdue follow-up missed. Using Visit Day only.',
+                      'Overdue follow-up missed.',
                       style: TextStyle(
                         color: Colors.redAccent.shade700,
                         fontSize: 12,

@@ -51,11 +51,15 @@ class _NewClientPageState extends State<NewClientPage> {
   final _contact1PhoneCtrl = TextEditingController(); // 10 numeric
   final _contact1WhatsappCtrl = TextEditingController(); // 10 numeric
   bool _contact1WhatsappError = false;
+  bool _contact1PhoneOverflowError = false;
+  bool _contact1WhatsappOverflowError = false;
 
   final _contact2NameCtrl = TextEditingController(); // 30
   final _contact2PhoneCtrl = TextEditingController(); // 10 numeric
   final _contact2WhatsappCtrl = TextEditingController(); // 10 numeric
   bool _contact2WhatsappError = false;
+  bool _contact2PhoneOverflowError = false;
+  bool _contact2WhatsappOverflowError = false;
 
   // Derived/readonly
   final _salesPersonNameCtrl = TextEditingController(); // auto-filled
@@ -65,7 +69,7 @@ class _NewClientPageState extends State<NewClientPage> {
 
   // Business
   String? _visitDaysValue; // MON..SUN
-  final _visitFreqDaysCtrl = TextEditingController(); // 3 numeric
+  String? _visitFreqDaysValue;
 
   // ---------- Hierarchy & Category ----------
   String? _selectedRegionId;
@@ -124,6 +128,8 @@ class _NewClientPageState extends State<NewClientPage> {
     if ((widget.salesPersonName ?? '').trim().isNotEmpty) {
       _salesPersonNameCtrl.text = widget.salesPersonName!.trim();
     }
+
+    _dateOfOpening = DateTime.now();
 
     // --- Stream region/area/subarea from repositories (names shown, no "All") ---
     _regionsRepo.streamRegions().listen(
@@ -213,8 +219,6 @@ class _NewClientPageState extends State<NewClientPage> {
     _customerCodeCtrl.dispose();
 
     // Business
-    _visitFreqDaysCtrl.dispose();
-
     super.dispose();
   }
 
@@ -669,14 +673,7 @@ class _NewClientPageState extends State<NewClientPage> {
   }
 
   Future<void> _pickDateOfOpening() async {
-    final now = DateTime.now();
-    final d = await showDatePicker(
-      context: context,
-      initialDate: _dateOfOpening ?? now,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(now.year + 5),
-    );
-    if (d != null) setState(() => _dateOfOpening = d);
+    // Opening date is fixed to today's date and cannot be changed.
   }
 
   String _formatMonthYear(DateTime? d) {
@@ -708,10 +705,6 @@ class _NewClientPageState extends State<NewClientPage> {
   List<TextInputFormatter> _digits6() => [
     FilteringTextInputFormatter.digitsOnly,
     LengthLimitingTextInputFormatter(6),
-  ];
-  List<TextInputFormatter> _digits3() => [
-    FilteringTextInputFormatter.digitsOnly,
-    LengthLimitingTextInputFormatter(3),
   ];
   // ---------- Save ----------
   Future<void> _save() async {
@@ -784,10 +777,6 @@ class _NewClientPageState extends State<NewClientPage> {
       'categoryCode': _selectedCategoryCode,
       'Customer_ID': customerId.toString(), // hidden numeric id
       'customerCode': _customerCodeCtrl.text,
-      'DateOfFirstCall': _dateOfFirstCall?.toIso8601String(),
-      'OpeningMonth': _openingMonth != null
-          ? '${_openingMonth!.year}-${_openingMonth!.month.toString().padLeft(2, '0')}'
-          : null,
 
       // --- Base fields (caps & lengths already enforced) ---
       'ClientName': _clientNameCtrl.text.trim(),
@@ -806,7 +795,7 @@ class _NewClientPageState extends State<NewClientPage> {
       'Visit_Days': (_visitDaysValue == '(blank)')
           ? ''
           : (_visitDaysValue ?? ''),
-      'VISIT_FREQUENCY_In_Days': _visitFreqDaysCtrl.text.trim(),
+        'VISIT_FREQUENCY_In_Days': (_visitFreqDaysValue ?? ''),
 
       // Meta
       'createdAt': DateTime.now().toIso8601String(),
@@ -1015,10 +1004,29 @@ class _NewClientPageState extends State<NewClientPage> {
                   controller: _contact1PhoneCtrl,
                   keyboardType: TextInputType.number,
                   inputFormatters: _digits10(),
+                  maxLength: 10,
                   decoration: const InputDecoration(
                     labelText: 'Phone Number',
                     border: OutlineInputBorder(),
                   ),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return null;
+                    return v.length == 10 ? null : 'Type a 10 digit number!';
+                  },
+                  buildCounter: (
+                    BuildContext context, {
+                    required int currentLength,
+                    required bool isFocused,
+                    required int? maxLength,
+                  }) {
+                    if (maxLength != null && currentLength == maxLength) {
+                      return const Text(
+                        'The number can be of 10 digits only.',
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      );
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 12),
                 Stack(
@@ -1027,11 +1035,30 @@ class _NewClientPageState extends State<NewClientPage> {
                       controller: _contact1WhatsappCtrl,
                       keyboardType: TextInputType.number,
                       inputFormatters: _digits10(),
+                      maxLength: 10,
                       decoration: const InputDecoration(
                         labelText: 'Whatsapp Number',
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.only(left: 12, right: 50, top: 12, bottom: 12),
                       ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return null;
+                        return v.length == 10 ? null : 'Type a 10 digit number!';
+                      },
+                      buildCounter: (
+                        BuildContext context, {
+                        required int currentLength,
+                        required bool isFocused,
+                        required int? maxLength,
+                      }) {
+                        if (maxLength != null && currentLength == maxLength) {
+                          return const Text(
+                            'The number can be of 10 digits only.',
+                            style: TextStyle(color: Colors.red, fontSize: 12),
+                          );
+                        }
+                        return null;
+                      },
                     ),
                     Positioned(
                       right: 8,
@@ -1082,10 +1109,29 @@ class _NewClientPageState extends State<NewClientPage> {
                   controller: _contact2PhoneCtrl,
                   keyboardType: TextInputType.number,
                   inputFormatters: _digits10(),
+                  maxLength: 10,
                   decoration: const InputDecoration(
                     labelText: 'Phone Number',
                     border: OutlineInputBorder(),
                   ),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return null;
+                    return v.length == 10 ? null : 'Type a 10 digit number!';
+                  },
+                  buildCounter: (
+                    BuildContext context, {
+                    required int currentLength,
+                    required bool isFocused,
+                    required int? maxLength,
+                  }) {
+                    if (maxLength != null && currentLength == maxLength) {
+                      return const Text(
+                        'The number can be of 10 digits only.',
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      );
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 12),
                 Stack(
@@ -1094,11 +1140,30 @@ class _NewClientPageState extends State<NewClientPage> {
                       controller: _contact2WhatsappCtrl,
                       keyboardType: TextInputType.number,
                       inputFormatters: _digits10(),
+                      maxLength: 10,
                       decoration: const InputDecoration(
                         labelText: 'Whatsapp Number',
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.only(left: 12, right: 50, top: 12, bottom: 12),
                       ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return null;
+                        return v.length == 10 ? null : 'Type a 10 digit number!';
+                      },
+                      buildCounter: (
+                        BuildContext context, {
+                        required int currentLength,
+                        required bool isFocused,
+                        required int? maxLength,
+                      }) {
+                        if (maxLength != null && currentLength == maxLength) {
+                          return const Text(
+                            'The number can be of 10 digits only.',
+                            style: TextStyle(color: Colors.red, fontSize: 12),
+                          );
+                        }
+                        return null;
+                      },
                     ),
                     Positioned(
                       right: 8,
@@ -1152,58 +1217,42 @@ class _NewClientPageState extends State<NewClientPage> {
                     DropdownMenuItem(value: 'FRI', child: Text('FRI')),
                     DropdownMenuItem(value: 'SAT', child: Text('SAT')),
                     DropdownMenuItem(value: 'SUN', child: Text('SUN')),
-                    DropdownMenuItem(value: '', child: Text('')),
                   ],
                   onChanged: (v) => setState(() => _visitDaysValue = v),
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Select Visit Day' : null,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _visitFreqDaysCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: _digits3(),
-
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'Visit Frequency In Days',
+                    labelText: 'Visit Frequency in Days',
                     border: OutlineInputBorder(),
                   ),
+                  value: _visitFreqDaysValue,
+                  items: const [
+                    DropdownMenuItem(value: '7', child: Text('7')),
+                    DropdownMenuItem(value: '14', child: Text('14')),
+                    DropdownMenuItem(value: '21', child: Text('21')),
+                    DropdownMenuItem(value: '28', child: Text('28')),
+                    DropdownMenuItem(value: '35', child: Text('35')),
+                    DropdownMenuItem(value: '42', child: Text('42')),
+                  ],
+                  onChanged: (v) => setState(() => _visitFreqDaysValue = v),
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Select Frequency' : null,
                 ),
 
                 const SizedBox(height: 16),
 
                 // ---- Dates ----
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DateBox(
-                        label: 'Date Of First Call',
-                        value: _dateOfFirstCall == null
-                            ? ''
-                            : _dateOfFirstCall!
-                                  .toIso8601String()
-                                  .split('T')
-                                  .first,
-
-                        onTap: _pickDateOfFirstCall,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _DateBox(
-                        label: 'Opening Month',
-                        value: _formatMonthYear(_openingMonth),
-                        onTap: _pickOpeningMonth,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
                 _DateBox(
                   label: 'DateOfOpening',
 
                   value: _dateOfOpening == null
                       ? ''
                       : _dateOfOpening!.toIso8601String().split('T').first,
-                  onTap: _pickDateOfOpening,
+                  onTap: () {},
                 ),
 
                 const SizedBox(height: 16),

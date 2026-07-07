@@ -61,6 +61,12 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final normalizedTitle = pageTitle.toLowerCase();
+    final isClientsActive = normalizedTitle.contains('client');
+    final isSalesRegisterActive =
+        normalizedTitle.contains('sales register') ||
+        normalizedTitle.contains('sales');
+    final isAdminActive = normalizedTitle.contains('admin');
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
@@ -96,8 +102,7 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
             builder: (context, constraints) {
               final isCompact = constraints.maxWidth < 720;
               final title = Column(
-                crossAxisAlignment:
-                    isCompact ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
                     pageTitle,
@@ -189,126 +194,144 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    // Prefer props if provided, else fallback to AppSession
-                    final sess = AppSession();
-
-                    final rId = roleId ?? sess.roleId;
-                    final sName =
-                        salesPersonName ?? (sess.salesPersonName ?? '');
-                    final aAcc = allAccess ?? (sess.allAccess ?? false);
-                    final rIds =
-                        allowedRegionIds ?? (sess.allowedRegionIds ?? const []);
-                    final aIds =
-                        allowedAreaIds ?? (sess.allowedAreaIds ?? const []);
-                    final sIds =
-                        allowedSubareaIds ??
-                        (sess.allowedSubareaIds ?? const []);
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ClientsSummaryPage(
-                          roleId:
-                              rId ??
-                              '5', // fallback safest role if truly missing
-                          salesPersonName: sName,
-                          allAccess: aAcc,
-                          allowedRegionIds: rIds,
-                          allowedAreaIds: aIds,
-                          allowedSubareaIds: sIds,
-                        ),
-                      ),
-                    );
-                  },
-                  style: menuButtonStyle(context),
-                  child: const Text("Clients"),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    colorScheme.surface.withOpacity(
+                      theme.brightness == Brightness.dark ? 0.82 : 0.92,
+                    ),
+                    colorScheme.surfaceContainerHighest.withOpacity(
+                      theme.brightness == Brightness.dark ? 0.68 : 0.76,
+                    ),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                /*ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => Dashboard()));
-                  },
-                  style: menuButtonStyle,
-                  child: const Text("Dashboard"),
-                ),
-                const SizedBox(width: 8),
-                
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => Phone_Entry()));
-                  },
-                  style: menuButtonStyle,
-                  child: const Text("Orders"),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                  },
-                  style: menuButtonStyle,
-                  child: const Text("Attendance"),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => InsertData()));
-                  },
-                  style: menuButtonStyle,
-                  child: const Text("Admin"),
-                ),*/
-                if (_canViewSalesRegister) ...[
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      final sess = AppSession();
-                      final rId = roleId ?? sess.roleId;
-                      final sName =
-                          salesPersonName ?? (sess.salesPersonName ?? '');
-                      final aAcc = allAccess ?? (sess.allAccess ?? false);
-                      final rIds =
-                          allowedRegionIds ??
-                          (sess.allowedRegionIds ?? const []);
-                      final aIds =
-                          allowedAreaIds ?? (sess.allowedAreaIds ?? const []);
-                      final sIds =
-                          allowedSubareaIds ??
-                          (sess.allowedSubareaIds ?? const []);
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SalesRegisterPage(
-                            roleId: rId,
-                            salesPersonName: sName,
-                            allAccess: aAcc,
-                            allowedRegionIds: rIds,
-                            allowedAreaIds: aIds,
-                            allowedSubareaIds: sIds,
-                            onLogout: onLogout,
-                          ),
-                        ),
-                      );
-                    },
-                    style: menuButtonStyle(context),
-                    child: const Text("Sales Register"),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: colorScheme.outlineVariant),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF14B8A6).withOpacity(
+                      theme.brightness == Brightness.dark ? 0.18 : 0.10,
+                    ),
+                    blurRadius: 24,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 6),
                   ),
-                  const SizedBox(width: 8),
                 ],
-                if ((roleId is int ? roleId : int.tryParse('$roleId')) == 4)
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => Admin()),
-                      );
-                    },
-                    style: menuButtonStyle(context),
-                    child: const Text("Admin"),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    height: 2,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF14B8A6).withOpacity(0),
+                          const Color(0xFF14B8A6).withOpacity(0.95),
+                          const Color(0xFF14B8A6).withOpacity(0),
+                        ],
+                      ),
+                    ),
                   ),
-              ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _NavGlowButton(
+                        label: 'Clients',
+                        icon: Icons.groups_2_outlined,
+                        active: isClientsActive,
+                        onTap: () {
+                          final sess = AppSession();
+
+                          final rId = roleId ?? sess.roleId;
+                          final sName =
+                              salesPersonName ?? (sess.salesPersonName ?? '');
+                          final aAcc = allAccess ?? (sess.allAccess ?? false);
+                          final rIds =
+                              allowedRegionIds ??
+                              (sess.allowedRegionIds ?? const []);
+                          final aIds =
+                              allowedAreaIds ?? (sess.allowedAreaIds ?? const []);
+                          final sIds =
+                              allowedSubareaIds ??
+                              (sess.allowedSubareaIds ?? const []);
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ClientsSummaryPage(
+                                roleId: rId ?? '5',
+                                salesPersonName: sName,
+                                allAccess: aAcc,
+                                allowedRegionIds: rIds,
+                                allowedAreaIds: aIds,
+                                allowedSubareaIds: sIds,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      if (_canViewSalesRegister) ...[
+                        const SizedBox(width: 8),
+                        _NavGlowButton(
+                          label: 'Sales Register',
+                          icon: Icons.assessment_outlined,
+                          active: isSalesRegisterActive,
+                          onTap: () {
+                            final sess = AppSession();
+                            final rId = roleId ?? sess.roleId;
+                            final sName =
+                                salesPersonName ?? (sess.salesPersonName ?? '');
+                            final aAcc = allAccess ?? (sess.allAccess ?? false);
+                            final rIds =
+                                allowedRegionIds ??
+                                (sess.allowedRegionIds ?? const []);
+                            final aIds =
+                                allowedAreaIds ??
+                                (sess.allowedAreaIds ?? const []);
+                            final sIds =
+                                allowedSubareaIds ??
+                                (sess.allowedSubareaIds ?? const []);
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SalesRegisterPage(
+                                  roleId: rId,
+                                  salesPersonName: sName,
+                                  allAccess: aAcc,
+                                  allowedRegionIds: rIds,
+                                  allowedAreaIds: aIds,
+                                  allowedSubareaIds: sIds,
+                                  onLogout: onLogout,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                      if ((roleId is int ? roleId : int.tryParse('$roleId')) == 4) ...[
+                        const SizedBox(width: 8),
+                        _NavGlowButton(
+                          label: 'Admin',
+                          icon: Icons.admin_panel_settings_outlined,
+                          active: isAdminActive,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => Admin()),
+                            );
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           Divider(height: 1, color: colorScheme.outlineVariant),
@@ -319,6 +342,93 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Size get preferredSize => const Size.fromHeight(132);
+}
+
+class _NavGlowButton extends StatefulWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _NavGlowButton({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  State<_NavGlowButton> createState() => _NavGlowButtonState();
+}
+
+class _NavGlowButtonState extends State<_NavGlowButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final teal = const Color(0xFF14B8A6);
+    final activeOrHover = widget.active || _hovered;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        decoration: BoxDecoration(
+          color: activeOrHover
+              ? teal.withOpacity(isDark ? 0.22 : 0.13)
+              : theme.colorScheme.surface.withOpacity(isDark ? 0.84 : 0.96),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: activeOrHover
+                ? teal.withOpacity(isDark ? 0.9 : 0.7)
+                : theme.colorScheme.outlineVariant,
+          ),
+          boxShadow: activeOrHover
+              ? [
+                  BoxShadow(
+                    color: teal.withOpacity(isDark ? 0.34 : 0.20),
+                    blurRadius: 18,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.icon,
+                    size: 18,
+                    color: activeOrHover ? teal : theme.colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: activeOrHover ? teal : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 ButtonStyle menuButtonStyle(BuildContext context) {

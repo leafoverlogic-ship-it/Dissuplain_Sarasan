@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:dissuplain_app_web_mobile/dataLayer/orders_repository.dart';
 import 'package:dissuplain_app_web_mobile/app_session.dart';
+import 'package:dissuplain_app_web_mobile/utils/activity_log_form_logic.dart';
 
 class OrderSectionNewOrder extends StatefulWidget {
   final OrdersRepository ordersRepo;
@@ -18,6 +20,10 @@ class OrderSectionNewOrder extends StatefulWidget {
 }
 
 class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
+  static double _resolveRateFromProduct(ProductRow product) {
+    return ProductRow.resolveRate(product);
+  }
+
   final _orderTypes = const ['1st Order', 'Repeat Order'];
   final Map<String, bool> _mpBillingTypeWithScheme = {};
   String _mpBillingTypeString(bool v) => v ? 'With Scheme' : 'NET';
@@ -56,6 +62,7 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
 
   String? _orderType;
   String? _billingType;
+  bool _hasExistingOrder = false;
   String? _productCode;
   String _productName = '';
   double _mrp = 0.0;
@@ -80,8 +87,7 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
     if (i < 0 || i >= mp_rows.length) return const SizedBox.shrink();
     final r = mp_rows[i];
     final code = r.code;
-    final current =
-        _mpBillingTypeWithScheme[code] ?? false; // default NET (off)
+    final current = _mpBillingTypeWithScheme[code] ?? false; // default NET (off)
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -108,15 +114,35 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
   @override
   void initState() {
     super.initState();
-    widget.ordersRepo.streamProducts().listen(
-      (v) => setState(() => _products = v),
-    );
+    FirebaseDatabase.instance
+        .ref('Orders/${widget.customerCode}')
+        .onValue
+        .listen((event) {
+          if (!mounted) return;
+          final hasOrders = event.snapshot.exists &&
+              event.snapshot.children.isNotEmpty;
+          setState(() {
+            _hasExistingOrder = hasOrders;
+            // Automatically set order type: 1st Order if no orders, Repeat Order if orders exist
+            _orderType = hasOrders ? 'Repeat Order' : '1st Order';
+          });
+        });
+    widget.ordersRepo.streamProducts().listen((v) {
+      if (!mounted) return;
+      setState(() => _products = v);
+      if (_resolvedCatCode.isNotEmpty) {
+        mp_populateFromData();
+      }
+    });
     widget.ordersRepo.streamDistributors().listen(
       (v) => setState(() => _distributors = v),
     );
     widget.ordersRepo.streamProductCategories().listen((v) {
       if (!mounted) return;
       setState(() => _pcRows = v);
+      if (_resolvedCatCode.isNotEmpty) {
+        mp_populateFromData();
+      }
     });
     widget.ordersRepo.getCategoryCodeByName(widget.customerCategory).then((
       code,
@@ -145,7 +171,7 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
     final p = _products.firstWhere(
       (e) => e.productCode == _productCode,
       orElse: () =>
-          ProductRow(productCode: '', productName: '', mrp: 0, freePer10: 0),
+          ProductRow(productCode: '', productName: '', mrp: 0, rate: 0, freePer10: 0),
     );
 
     final pc = _pcFor(_productCode, _resolvedCatCode);
@@ -157,17 +183,10 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
     final typedQty = int.tryParse(raw) ?? 0;
     final qty = typedQty < 0 ? 0 : typedQty;
 
-    _freeQty = (_billingType == 'With Scheme')
-        ? (qty ~/ 10) * pc.freePer10Scheme
-        : 0;
+    final bool useScheme = _billingType == 'With Scheme';
+    _freeQty = useScheme ? (qty ~/ 3) : 0;
 
-    if (_billingType == 'With Scheme') {
-      _rate = _mrp * (1 - pc.discountScheme); // e.g. 350 * (1 - 0.3825)
-    } else if (_billingType == 'NET') {
-      _rate = _mrp * (1 - pc.discountNET); // e.g. 350 * (1 - 0.44)
-    } else {
-      _rate = _mrp;
-    }
+    _rate = useScheme ? (_mrp * 0.80) : _resolveRateFromProduct(p);
     _total = qty * _rate;
 
     setState(() {});
@@ -183,23 +202,26 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
     final int qty = r.qty < 0 ? 0 : r.qty;
 
     if (useScheme) {
-      final bool hitBulk = r.schemeBulkMOQ > 0 && qty >= r.schemeBulkMOQ;
-      final double disc = hitBulk ? r.discountSchemeBulk : r.discountScheme;
-      r.rate = r.mrp * (1 - disc);
-
-      // Free qty for scheme: bulk freeQty if MOQ hit, else per-10 scheme free
-      if (hitBulk && r.freeQtyBulkScheme > 0) {
-        r.free = r.freeQtyBulkScheme;
+      // Product-specific scheme exceptions
+      final name = r.name.trim().toLowerCase();
+      if (name.contains('udar sanjeevi')) {
+        // 6 free for every 19 billed
+        r.free = (qty ~/ 19) * 6;
+      } else if (name.contains('dr. sardard') || name.contains('dr sardard') || name.contains('sardard inhalar') || name.contains('sardard')) {
+        // 6 free for every 19 billed
+        r.free = (qty ~/ 19) * 6;
+      } else if (name.contains('neerja the oil') || name.contains('neerja')) {
+        // 4 free for every 11 billed
+        r.free = (qty ~/ 11) * 4;
       } else {
-        r.free = (qty ~/ 10) * r.freePer10Scheme;
+        // default: 1 free for every 3 billed
+        r.free = qty ~/ 3;
       }
+      r.rate = double.parse((r.mrp * 0.80).toStringAsFixed(2));
     } else {
-      final bool hitBulk = r.netBulkMOQ > 0 && qty >= r.netBulkMOQ;
-      final double disc = hitBulk ? r.discountNETBulk : r.discountNET;
-      r.rate = r.mrp * (1 - disc);
-      r.free = 0; // NET has no free qty
+      r.free = 0;
+      r.rate = r.manualRate;
     }
-
     r.total = double.parse((qty * r.rate).toStringAsFixed(2));
   }
 
@@ -277,12 +299,13 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
 
     if (businessName.isEmpty ||
         businessAddress.isEmpty ||
-        gstNumber.isEmpty ||
         contactPerson.isEmpty ||
         mobileNo.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please fill all mandatory Business Details fields'),
+          content: Text(
+            'Please fill all mandatory Business Details fields (GST Number is optional)',
+          ),
         ),
       );
       return;
@@ -295,9 +318,12 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
       return;
     }
 
+    // Order type is automatically set: 1st Order if no existing orders, Repeat Order otherwise
+    final orderType = _orderType ?? '1st Order';
+
     await widget.ordersRepo.addMPOrder(
       customerCode: widget.customerCode,
-      orderType: _orderType!,
+      orderType: orderType,
       distributorID: _distributorId!,
       salesPersonID: _salesPersonId,
       grandTotal: grandTotal,
@@ -307,6 +333,7 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
       gstNumber: gstNumber,
       contactPerson: contactPerson,
       mobileNo: mobileNo,
+      isFirstOrder: !_hasExistingOrder,
     );
 
     // Reset qty fields and recompute
@@ -342,11 +369,11 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
       }
     }
 
-    // Filter products by above mapping (customer's category)
-    final allowedCodes = mp_pcByProduct.keys.toSet();
-    final scoped =
-        _products.where((p) => allowedCodes.contains(p.productCode)).toList()
-          ..sort((a, b) => a.productName.compareTo(b.productName));
+    final scoped = OrdersRepository.filterProductsForCategory(
+      products: _products,
+      productCategoryRows: _pcRows,
+      categoryCode: _resolvedCatCode,
+    );
 
     // Build rows (qty=0 by default). Rate computed off billing type & mrp.
     mp_rows..clear();
@@ -368,10 +395,13 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
           discountNETBulk: pc.discountNETBulk,
           discountSchemeBulk: pc.discountSchemeBulk,
           freeQtyBulkScheme: pc.freeQtyBulkScheme,
+          manualRate: p.rate,
         ),
       );
       mp_qtyCtrls.add(TextEditingController(text: '0'));
     }
+    // Sort products by name alphabetically
+    mp_rows.sort((a, b) => a.name.compareTo(b.name));
     mp_recomputeAll();
     setState(() {});
   }
@@ -436,14 +466,17 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
         ),
       );
 
-      const double wCode = 150;
-      const double wName = 260;
-      const double wMrp = 100;
-      const double wQty = 120;
-      const double wFree = 120;
-      const double wRate = 100;
-      const double wTot = 140;
-      const double wBill = 160;
+      // tightened column widths to reduce horizontal spacing
+      const double wCode = 120;
+      const double wName = 220;
+      const double wMrp = 80;
+      const double wQty = 100;
+      const double wFree = 80;
+      const double wTrade = 80;
+      const double wTotalUnit = 80;
+      const double wRate = 80;
+      const double wTot = 110;
+      const double wBill = 120;
 
       final rows = <Widget>[
         // header
@@ -456,10 +489,12 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
               h('MRP', wMrp, right: true),
               h('Billing\nQuantity', wQty, right: true),
               Padding(
-                padding: const EdgeInsets.only(left: 12.0), // <-- adds gap
+                padding: const EdgeInsets.only(left: 6.0), // reduced gap
                 child: h('Billing Type', wBill),
               ),
               h('Free\nQuantity', wFree, right: true),
+              h('Trade\n20%', wTrade, right: true),
+              h('Total\nUnit', wTotalUnit, right: true),
               h('Rate', wRate, right: true),
               h('Product Total', wTot, right: true),
             ],
@@ -474,7 +509,7 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
 
         rows.add(
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.symmetric(vertical: 6.0),
             child: Row(
               children: [
                 c(Text(r.code), wCode),
@@ -507,10 +542,12 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
                   right: true,
                 ),
                 Padding(
-                  padding: const EdgeInsets.only(left: 12.0),
+                  padding: const EdgeInsets.only(left: 6.0),
                   child: c(_mpBuildBillingTypeSwitch(i), wBill),
                 ),
                 c(Text(r.free.toString()), wFree, right: true),
+                c(Text((r.mrp * 0.20).toStringAsFixed(2)), wTrade, right: true),
+                c(Text((r.qty + r.free).toString()), wTotalUnit, right: true),
                 c(Text(r.rate.toStringAsFixed(2)), wRate, right: true),
                 c(Text(r.total.toStringAsFixed(2)), wTot, right: true),
               ],
@@ -547,9 +584,9 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
           children: [
             const Spacer(),
             Text('Grand Total', style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(width: 24),
+            const SizedBox(width: 12),
             SizedBox(
-              width: 140,
+              width: 110,
               child: Text(
                 mp_grandTotal.toStringAsFixed(2),
                 textAlign: TextAlign.right,
@@ -572,22 +609,17 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
         ),
         const SizedBox(height: 8),
 
-        // Row: Order Type | Billing Type (unchanged)
+        // Row: Order Type (automatically set based on existing orders)
         Row(
           children: [
             Expanded(
-              child: DropdownButtonFormField<String>(
+              child: InputDecorator(
                 decoration: const InputDecoration(
                   labelText: 'Order Type',
+                  isDense: true,
+                  border: OutlineInputBorder(),
                 ),
-                value: _orderType,
-                items: _orderTypes
-                    .map(
-                      (e) => DropdownMenuItem(value: e, child: Text(e)),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _orderType = v),
-                isDense: true,
+                child: Text(_orderType ?? '1st Order'),
               ),
             ),
           ],
@@ -632,7 +664,7 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
               ),
               const SizedBox(height: 4),
               Text(
-                'All fields are mandatory before saving order.',
+                'All fields except GST Number are mandatory before saving order.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 12),
@@ -660,7 +692,7 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
                 textCapitalization: TextCapitalization.characters,
                 maxLength: 15,
                 decoration: const InputDecoration(
-                  labelText: 'GstNumber *',
+                  labelText: 'Gst Number (Optional)',
                   border: OutlineInputBorder(),
                   counterText: '',
                 ),
@@ -745,6 +777,7 @@ class _MpRow {
   final int freeQtyBulkScheme;
   int qty;
   int free;
+  double manualRate;
   double rate;
   double total;
 
@@ -762,7 +795,9 @@ class _MpRow {
     required this.freeQtyBulkScheme,
     this.qty = 0,
     this.free = 0,
+    this.manualRate = 0.0,
     this.rate = 0.0,
     this.total = 0.0,
   });
 }
+

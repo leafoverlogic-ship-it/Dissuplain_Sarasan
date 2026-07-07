@@ -14,6 +14,7 @@ import '../../businessLogic/OrderSection_ExistingOrder.dart';
 import '../CommonHeader.dart';
 import '../CommonFooter.dart';
 import '../app_session.dart';
+import '../utils/client_detail_field_resolver.dart';
 
 class ClientDetailsPage extends StatefulWidget {
   final CustomerEntry client; // carries region/area/subarea IDs + customerCode
@@ -970,7 +971,9 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             _pair('Visit_Days', _s(m['Visit_Days'])),
                             _pair(
                               'VISIT_FREQUENCY_In_Days',
-                              _s(m['VISIT_FREQUENCY_In_Days']),
+                              normalizeVisitFrequencyValue(
+                                _s(m['VISIT_FREQUENCY_In_Days']),
+                              ),
                             ),
                           ],
                           itemBuilder: rowBuilder,
@@ -1056,6 +1059,9 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             customerCode: code,
                             clientKey: clientKey,
                             visitDays: _s(m['Visit_Days']),
+                            visitFrequencyDays: normalizeVisitFrequencyValue(
+                              _s(m['VISIT_FREQUENCY_In_Days']),
+                            ),
                             currentFollowupRaw: m['followupDate'],
                           ),
                         ),

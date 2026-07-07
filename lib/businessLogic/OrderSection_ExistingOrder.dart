@@ -87,6 +87,8 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final filtered = _orders.where((o) {
       if (_filter == 'All') return true;
       final total = widget.ordersRepo.grandTotalFromEntryMP(o);
@@ -96,17 +98,32 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Spacer(),
-            DropdownButton<String>(
-              value: _filter,
-              items: _statusFilters
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (v) => setState(() => _filter = v ?? 'All'),
-            ),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                filtered.isEmpty ? 'No orders found' : '${filtered.length} order${filtered.length != 1 ? 's' : ''}',
+                style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withOpacity(isDark ? 0.8 : 0.9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: DropdownButton<String>(
+                  value: _filter,
+                  underline: const SizedBox(),
+                  items: _statusFilters
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _filter = v ?? 'All'),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
         LayoutBuilder(
@@ -171,6 +188,32 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
         .update({'deliveryStatus': normalized, 'deliveryDate': deliveryDate});
   }
 
+  Color _statusColor(String status) {
+    final lower = status.toLowerCase();
+    if (lower.contains('confirmed')) return const Color(0xFF10B981);
+    if (lower.contains('gm')) return const Color(0xFFF59E0B);
+    if (lower.contains('ceo')) return const Color(0xFFEF4444);
+    if (lower.contains('cancelled')) return const Color(0xFF6B7280);
+    if (lower.contains('new')) return const Color(0xFF3B82F6);
+    return const Color(0xFF8B5CF6);
+  }
+
+  Widget _statusBadge(String status) {
+    final color = _statusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        border: Border.all(color: color.withOpacity(0.7)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(fontWeight: FontWeight.w700, color: color, fontSize: 12),
+      ),
+    );
+  }
+
   Widget _buildOrdersDisplayMP(List<OrderEntry> src) {
     String _fmtDate(int ms) {
       final dt = DateTime.fromMillisecondsSinceEpoch(ms);
@@ -198,25 +241,31 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
           style: Theme.of(context)
               .textTheme
               .bodyMedium
-              ?.copyWith(fontWeight: FontWeight.w700),
+              ?.copyWith(fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface),
         );
 
-    Widget _miniHeader() => Padding(
-          padding: const EdgeInsets.only(top: 6, bottom: 4),
+    Widget _miniHeader() => Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Row(
-            children: const [
+            children: [
               Expanded(
                 flex: 15,
                 child: Text(
-                  'Product Code',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  'Code',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700) ??
+                      const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
               Expanded(
                 flex: 35,
                 child: Text(
-                  'Product Name',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  'Product',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700) ??
+                      const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
               Expanded(
@@ -224,15 +273,17 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                 child: Text(
                   'MRP',
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700) ??
+                      const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
               Expanded(
                 flex: 12,
                 child: Text(
-                  'Billing Quantity',
+                  'Qty',
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700) ??
+                      const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
               Expanded(
@@ -240,8 +291,9 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 12.0),
                   child: Text(
-                    'Billing Type',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    'Type',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700) ??
+                        const TextStyle(fontWeight: FontWeight.w700),
                     textAlign: TextAlign.left,
                   ),
                 ),
@@ -249,9 +301,10 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
               Expanded(
                 flex: 12,
                 child: Text(
-                  'Free Quantity',
+                  'Free',
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700) ??
+                      const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
               Expanded(
@@ -259,32 +312,57 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                 child: Text(
                   'Rate',
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700) ??
+                      const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
               Expanded(
                 flex: 16,
                 child: Text(
-                  'Product Total',
+                  'Total',
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700) ??
+                      const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
             ],
           ),
         );
 
-    Widget _miniRow(OrderDisplayLine l) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+    Widget _miniRow(OrderDisplayLine l) => Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLowest.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(6),
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3),
+              ),
+            ),
+          ),
           child: Row(
             children: [
-              Expanded(flex: 15, child: Text(l.productCode)),
-              Expanded(flex: 35, child: Text(l.productName)),
+              Expanded(
+                flex: 15,
+                child: Text(
+                  l.productCode,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                ),
+              ),
+              Expanded(
+                flex: 35,
+                child: Text(
+                  l.productName,
+                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+                ),
+              ),
               Expanded(
                 flex: 10,
                 child: Text(
                   l.productMRP.toStringAsFixed(2),
                   textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 12),
                 ),
               ),
               Expanded(
@@ -292,6 +370,7 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                 child: Text(
                   l.billQuantity.toString(),
                   textAlign: TextAlign.right,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
                 ),
               ),
               Expanded(
@@ -301,6 +380,7 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                   child: Text(
                     l.billingType,
                     textAlign: TextAlign.left,
+                    style: const TextStyle(fontSize: 11),
                   ),
                 ),
               ),
@@ -309,6 +389,7 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                 child: Text(
                   l.freeQuantity.toString(),
                   textAlign: TextAlign.right,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
                 ),
               ),
               Expanded(
@@ -316,6 +397,7 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                 child: Text(
                   l.rate.toStringAsFixed(2),
                   textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 12),
                 ),
               ),
               Expanded(
@@ -323,43 +405,57 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                 child: Text(
                   l.totalAmount.toStringAsFixed(2),
                   textAlign: TextAlign.right,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                 ),
               ),
             ],
           ),
         );
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final children = <Widget>[];
     for (final h in src) {
       final total = widget.ordersRepo.grandTotalFromEntryMP(h);
       final key = _orderKeys.putIfAbsent(h.orderID, () => GlobalKey());
+      final status = _displayStatus(h.orderConfirmation, total);
       children.add(
         Container(
           key: key,
           margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.black12),
-            borderRadius: BorderRadius.circular(8),
+            color: theme.colorScheme.surface.withOpacity(isDark ? 0.72 : 0.88),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.8)),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             children: [
               // --- header labels ---
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                padding: const EdgeInsets.only(bottom: 12),
                 child: Row(
                   children: [
                     Expanded(flex: 16, child: _head('Order ID')),
-                    Expanded(flex: 14, child: _head('Order Status')),
-                    Expanded(flex: 14, child: _head('Order Type')),
+                    Expanded(flex: 14, child: _head('Status')),
+                    Expanded(flex: 14, child: _head('Type')),
                     Expanded(flex: 22, child: _head('Distributor')),
                     Expanded(flex: 14, child: _head('Order Date')),
-                    Expanded(flex: 12, child: _head('Delivery Status')),
-                    Expanded(flex: 12, child: _head('Delivery Date')),
-                    Expanded(flex: 10, child: _head('Grand Total')),
+                    Expanded(flex: 12, child: _head('Delivery')),
+                    Expanded(flex: 12, child: _head('Del. Date')),
+                    Expanded(flex: 10, child: _head('Total')),
                   ],
                 ),
               ),
+              Divider(height: 1, color: theme.colorScheme.outlineVariant.withOpacity(0.5)),
+              const SizedBox(height: 8),
               // --- header values ---
               Row(
                 children: [
@@ -367,64 +463,100 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                     flex: 16,
                     child: Text(
                       h.orderID,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                     ),
                   ),
                   Expanded(
                     flex: 14,
-                    child: Text(_displayStatus(h.orderConfirmation, total)),
+                    child: _statusBadge(status),
                   ),
-                  Expanded(flex: 14, child: Text(h.orderType)),
+                  Expanded(flex: 14, child: Text(h.orderType, style: const TextStyle(fontSize: 13))),
                   Expanded(
                     flex: 22,
-                    child: Text(_distName(h.distributorID)),
+                    child: Text(_distName(h.distributorID), style: const TextStyle(fontSize: 13)),
                   ),
-                  Expanded(flex: 14, child: Text(_fmtDate(h.orderDate))),
+                  Expanded(flex: 14, child: Text(_fmtDate(h.orderDate), style: const TextStyle(fontSize: 13))),
                   Expanded(
                     flex: 12,
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: (h.deliveryStatus == 'Delivered')
-                            ? 'Delivered'
-                            : 'Undelivered',
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Undelivered',
-                            child: Text('Undelivered'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: (h.deliveryStatus == 'Delivered')
+                            ? const Color(0xFF10B981).withOpacity(0.15)
+                            : const Color(0xFFEF4444).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: (h.deliveryStatus == 'Delivered')
+                              ? const Color(0xFF10B981).withOpacity(0.5)
+                              : const Color(0xFFEF4444).withOpacity(0.5),
+                        ),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: (h.deliveryStatus == 'Delivered')
+                              ? 'Delivered'
+                              : 'Undelivered',
+                          isDense: true,
+                          style: TextStyle(
+                            color: (h.deliveryStatus == 'Delivered')
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFEF4444),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
                           ),
-                          DropdownMenuItem(
-                            value: 'Delivered',
-                            child: Text('Delivered'),
-                          ),
-                        ],
-                        onChanged: (v) {
-                          if (v == null) return;
-                          _updateDeliveryStatus(h.orderID, v);
-                        },
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'Undelivered',
+                              child: Text('Undelivered'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Delivered',
+                              child: Text('Delivered'),
+                            ),
+                          ],
+                          onChanged: (v) {
+                            if (v == null) return;
+                            _updateDeliveryStatus(h.orderID, v);
+                          },
+                        ),
                       ),
                     ),
                   ),
-                  Expanded(flex: 12, child: Text(_fmtDeliveryDate(h.deliveryDate))),
+                  Expanded(flex: 12, child: Text(_fmtDeliveryDate(h.deliveryDate), style: const TextStyle(fontSize: 13))),
                   Expanded(
                     flex: 10,
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: Text(
                         total.toStringAsFixed(2),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                       ),
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 8),
-              const Divider(height: 1),
-
-              // --- products mini table ---
-              _miniHeader(),
-              const Divider(height: 1),
-              ...widget.ordersRepo.linesFromEntryMP(h).map(_miniRow),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                    ),
+                    bottom: BorderSide(
+                      color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                    ),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    _miniHeader(),
+                    const SizedBox(height: 8),
+                    ...widget.ordersRepo.linesFromEntryMP(h).map(_miniRow),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

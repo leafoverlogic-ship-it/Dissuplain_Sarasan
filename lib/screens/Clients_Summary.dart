@@ -48,7 +48,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
   String _regionId = '';
   String _areaId = '';
   String _subareaId = '';
-  String _bandaWiseUserName = '';
+  String _creatorUserId = '';
 
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _pageScrollCtrl = ScrollController();
@@ -260,6 +260,14 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       if (v.isNotEmpty) return v;
     }
     return '';
+  }
+
+  String _clientName(CustomerEntry c) {
+    final candidate = _s(c.clientName);
+    if (candidate.isNotEmpty) return candidate;
+    final institute = _s(c.instituteOrClinicName);
+    if (institute.isNotEmpty) return institute;
+    return _s(c.pharmacyName);
   }
 
   String _fmtYmd(dynamic raw) {
@@ -537,16 +545,6 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       pool = pool.where((c) => _matchesVisitDay(c.visitDays, targetWeekday));
     }
 
-    if (_canUseBandaWiseFilter && _bandaWiseUserName.isNotEmpty) {
-      final selectedName = _bandaWiseUserName.trim().toLowerCase();
-      pool = pool.where((c) {
-        final directName = (c.salesPersonName ?? '').trim();
-        final fallbackName = _salesPersonName(c.subareaId).trim();
-        final effectiveName = directName.isNotEmpty ? directName : fallbackName;
-        return effectiveName.toLowerCase() == selectedName;
-      });
-    }
-
     if (_searchTerm.isNotEmpty) {
       final query = _searchTerm.toLowerCase();
       final queryDigits = _digitsOnly(_searchTerm);
@@ -556,12 +554,39 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       }
 
       pool = pool.where((c) {
-        final code = _s(c.customerCode).toLowerCase();
-        if (code.contains(query)) return true;
+        final name = _clientName(c).toLowerCase();
+        if (name.contains(query)) return true;
         return matchesMobile(c.docMobileNo1) ||
             matchesMobile(c.docMobileNo2) ||
             matchesMobile(c.pharmacyMobileNo1) ||
             matchesMobile(c.pharmacyMobileNo2);
+      });
+    }
+
+    if (_creatorUserId.isNotEmpty) {
+      final selectedId = _creatorUserId;
+      final selectedUserName = _users
+          .firstWhere(
+            (u) => _s(u.salesPersonId) == selectedId,
+            orElse: () => const UserEntry(
+              salesPersonId: '',
+              salesPersonName: '',
+              emailAddress: '',
+              phoneNumber: '',
+              salesPersonRoleId: '',
+              reportingPersonId: '',
+              loginPwd: '',
+            ),
+          )
+          .salesPersonName
+          .trim();
+
+      pool = pool.where((c) {
+        final creator = (c.createdBy ?? '').trim();
+        if (creator.isEmpty) return false;
+        if (creator == selectedId) return true;
+        if (selectedUserName.isNotEmpty && creator == selectedUserName) return true;
+        return false;
       });
     }
 
@@ -611,16 +636,6 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       default:
         return 'MON';
     }
-  }
-
-  bool get _canUseBandaWiseFilter {
-    final role = widget.roleId.trim();
-    return role == '2' ||
-        role == '3' ||
-        role == '4' ||
-        role == '5' ||
-        role == '6' ||
-        role == '7';
   }
 
   bool _matchesVisitDay(String? visitDays, int weekday) {
@@ -1052,8 +1067,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                             onChanged: (value) =>
                                 setState(() => _searchTerm = value.trim()),
                             decoration: InputDecoration(
-                              labelText:
-                                  'Search by client code or mobile number',
+                              labelText: 'Search by name or mobile number',
                               prefixIcon: const Icon(Icons.search),
                               suffixIcon: _searchTerm.isEmpty
                                   ? null
@@ -1148,10 +1162,11 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                                   _subareaId = id ?? '';
                                 }),
                               ),
-                              if (_canUseBandaWiseFilter)
+                              const SizedBox(height: 6),
+                              if (['2', '3', '4', '5', '6', '7'].contains(widget.roleId))
                                 _rowDropdown(
-                                  label: 'Salesperson Wise',
-                                  value: _bandaWiseUserName,
+                                  label: 'Created By',
+                                  value: _creatorUserId,
                                   items: _lu
                                       ? const [
                                           DropdownMenuItem(
@@ -1166,9 +1181,9 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                                                   child: Text('Error'),
                                                 ),
                                               ]
-                                            : _bandaWiseItems()),
-                                  onChanged: (name) => setState(() {
-                                    _bandaWiseUserName = name ?? '';
+                                            : _creatorItems()),
+                                  onChanged: (id) => setState(() {
+                                    _creatorUserId = id ?? '';
                                   }),
                                 ),
                             ],
@@ -1586,20 +1601,19 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
     ];
   }
 
-  List<DropdownMenuItem<String>> _bandaWiseItems() {
-    final names = <String>{};
-    for (final u in _users) {
-      final n = u.salesPersonName.trim();
-      if (n.isNotEmpty) names.add(n);
-    }
-
-    final sorted = names.toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  List<DropdownMenuItem<String>> _creatorItems() {
+    final rows = _users
+        .where((u) => _s(u.salesPersonRoleId) == '1')
+        .toList()
+      ..sort((a, b) => a.salesPersonName.toLowerCase().compareTo(b.salesPersonName.toLowerCase()));
 
     return [
       const DropdownMenuItem(value: '', child: Text('All')),
-      ...sorted.map(
-        (name) => DropdownMenuItem(value: name, child: Text(name)),
+      ...rows.map(
+        (u) => DropdownMenuItem(
+          value: _s(u.salesPersonId),
+          child: Text(u.salesPersonName.isNotEmpty ? u.salesPersonName : 'Unnamed'),
+        ),
       ),
     ];
   }

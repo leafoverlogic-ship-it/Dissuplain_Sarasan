@@ -90,5 +90,62 @@ class ActivityLogsRepository {
        if (response != null && response.isNotEmpty) 'Response': response,
       'createdAt': ServerValue.timestamp,
     });
+
+    // Check if this is the first "New Call" activity for this customer and set Date_of_1st_Call
+    if (type.trim().toLowerCase() == 'new call') {
+      // Query to find if there are other "New Call" logs for this customer
+      final query = _ref.orderByChild('customerCode').equalTo(customerCode);
+      final snap = await query.get();
+      
+      int newCallCount = 0;
+      if (snap.value is Map) {
+        (snap.value as Map).forEach((_, value) {
+          if (value is Map) {
+            final logType = (value['type'] ?? '').toString().trim().toLowerCase();
+            if (logType == 'new call') {
+              newCallCount++;
+            }
+          }
+        });
+      } else if (snap.value is List) {
+        final list = snap.value as List;
+        for (final value in list) {
+          if (value is Map) {
+            final logType = (value['type'] ?? '').toString().trim().toLowerCase();
+            if (logType == 'new call') {
+              newCallCount++;
+            }
+          }
+        }
+      }
+
+      // If this is the first "New Call", set Date_of_1st_Call in Clients
+      if (newCallCount == 1) {
+        try {
+          final clientsQuery = await _db
+              .ref('Clients')
+              .orderByChild('customerCode')
+              .equalTo(customerCode)
+              .get();
+
+          String? clientKey;
+          for (final child in clientsQuery.children) {
+            if (child.key != null && child.key!.isNotEmpty) {
+              clientKey = child.key!;
+              break;
+            }
+          }
+
+          if (clientKey != null) {
+            await _db.ref('Clients/$clientKey').update({
+              'Date_of_1st_Call': dateTime.millisecondsSinceEpoch,
+            });
+          }
+        } catch (e) {
+          // Log error but don't fail the addLog operation
+          print('Error setting Date_of_1st_Call: $e');
+        }
+      }
+    }
   }
 }

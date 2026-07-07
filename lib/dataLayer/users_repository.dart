@@ -21,6 +21,13 @@ bool isUserDisabled(Map<String, dynamic> user) {
 
 bool canAccessUser(Map<String, dynamic> user) => !isUserDisabled(user);
 
+List<UserEntry> filterUsersByRoleId(List<UserEntry> users, {required String roleId}) {
+  final targetRole = _s(roleId);
+  if (targetRole.isEmpty) return users;
+
+  return users.where((user) => _s(user.salesPersonRoleId) == targetRole).toList();
+}
+
 /// One row from /Users
 class UserEntry {
   final String salesPersonId;      // SalesPersonID / salesPersonID

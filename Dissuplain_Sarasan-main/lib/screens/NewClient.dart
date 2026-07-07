@@ -1405,7 +1405,7 @@ class _NewClientPageState extends State<NewClientPage> {
                   inputFormatters: _digits3(),
 
                   decoration: const InputDecoration(
-                    labelText: 'Visit Frequency In Days',
+                    labelText: 'Visit Frequency',
                     border: OutlineInputBorder(),
                   ),
                 ),

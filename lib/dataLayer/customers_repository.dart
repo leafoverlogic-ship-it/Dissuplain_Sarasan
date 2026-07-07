@@ -49,6 +49,7 @@ class CustomerEntry {
   final String? businessSlab;          // BUSINESS_SLAB
   final String? businessCat;           // BUSINESS_CAT
   final String? visitFrequencyInDays;  // VISIT_FREQUENCY_In_Days
+  final String? createdBy; // creator user id or name (createdBy / userId / enteredBy)
 
   // Dates (string or epoch supported)
   final dynamic followupDate;     // followupDate (epoch ms or string)
@@ -92,6 +93,7 @@ class CustomerEntry {
     this.dateOfFirstCall,
     this.openingMonth,
     this.dateOfOpening,
+    this.createdBy,
   });
 
   factory CustomerEntry.fromMap(Map raw) {
@@ -153,6 +155,7 @@ class CustomerEntry {
       dateOfFirstCall: n('Date_of_1st_Call') ?? n('DateOfFirstCall'),
       openingMonth:    n('Opening_Month')    ?? n('OpeningMonth'),
       dateOfOpening:   n('Date_of_Opening')  ?? n('DateOfOpening'),
+      createdBy:       n('createdBy') ?? n('CreatedBy') ?? n('created_by') ?? n('userId') ?? n('UserID') ?? n('enteredBy') ?? n('enteredByUser'),
     );
   }
 }

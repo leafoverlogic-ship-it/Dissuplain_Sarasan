@@ -130,6 +130,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
     await _db.ref('Users').child(dbKey).update(delta);
   }
 
+  Future<void> _deleteUser(String key, String userId) async {
+    final dbKey = key.trim().isNotEmpty ? key : '';
+    if (dbKey.isEmpty) return;
+
+    await _db.ref('Users').child(dbKey).remove();
+  }
+
   Future<Map<String, String>> _resolveRoleOneTerritory(String rawRegion, String rawArea) async {
     final regionLookup = <String, String>{};
     final areaLookup = <String, String>{};
@@ -373,6 +380,47 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     }
                   },
                   child: const Text('Reset Password'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (BuildContext dialogContext) => AlertDialog(
+                        title: const Text('Delete User'),
+                        content: Text(
+                          'Are you sure you want to delete user "$id" (${nameCtl.text.trim()})?\n\nThis action cannot be undone. The user will be completely removed from the database.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(false),
+                            child: const Text('Cancel'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirmed == true && mounted) {
+                      await _deleteUser(dbKey, id);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('User deleted successfully')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.delete),
+                  label: const Text('Delete'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             ),
