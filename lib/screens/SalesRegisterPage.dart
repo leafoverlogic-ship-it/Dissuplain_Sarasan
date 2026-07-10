@@ -149,7 +149,7 @@ class _SalesRegisterPageState extends State<SalesRegisterPage> {
 
   String get _currentUserId => (AppSession().salesPersonId ?? '').trim();
   bool get _canAccessSalesRegister {
-    return _currentRole == 4 || _currentUserId == 'SS-1132';
+    return (widget.roleId ?? AppSession().roleId ?? '').trim().isNotEmpty;
   }
 
   String get _currentUserName {

@@ -180,21 +180,30 @@ class _TerritoryManagerPageState extends State<TerritoryManagerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AppCommonHeader(title: 'Territory Manager'),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            maxWidth: 640,
-          ), // mobile-friendly width
+            maxWidth: 980,
+          ),
           child: Column(
             children: [
-              _toolbar(),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: _toolbar(),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                child: _statsStrip(theme),
+              ),
               const Divider(height: 1),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
                   children: _filteredRegions.map((r) {
                     final areas = _areas
                         .where((a) => a.regionId == r.regionId)
@@ -239,25 +248,106 @@ class _TerritoryManagerPageState extends State<TerritoryManagerPage> {
     );
   }
 
-  Widget _toolbar() => Padding(
-    padding: const EdgeInsets.all(12),
-    child: Row(
-      children: [
-        Expanded(
-          child: TextField(
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              hintText: 'Search region / area / subarea',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onChanged: (v) => setState(() => _q = v),
+  Widget _toolbar() {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: TextField(
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.search),
+          hintText: 'Search region / area / subarea',
+          helperText: 'Quickly find territory blocks and assignments',
+          filled: true,
+          fillColor: theme.colorScheme.surfaceContainerLow,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
           ),
         ),
+        onChanged: (v) => setState(() => _q = v),
+      ),
+    );
+  }
+
+  Widget _statsStrip(ThemeData theme) {
+    final totalRegions = _regions.length;
+    final totalAreas = _areas.length;
+    final totalSubareas = _subareas.length;
+    final visibleRegions = _filteredRegions.length;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _statPill(
+          theme: theme,
+          icon: Icons.public,
+          label: 'Regions',
+          value: totalRegions,
+        ),
+        _statPill(
+          theme: theme,
+          icon: Icons.map,
+          label: 'Areas',
+          value: totalAreas,
+        ),
+        _statPill(
+          theme: theme,
+          icon: Icons.place,
+          label: 'Subareas',
+          value: totalSubareas,
+        ),
+        _statPill(
+          theme: theme,
+          icon: Icons.filter_list,
+          label: 'Visible',
+          value: visibleRegions,
+        ),
       ],
-    ),
-  );
+    );
+  }
+
+  Widget _statPill({
+    required ThemeData theme,
+    required IconData icon,
+    required String label,
+    required int value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.55),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(
+            '$label: ',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            '$value',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   // ---------- ID helpers: compute next incremental numeric id (max + 1) ----------
 
@@ -545,11 +635,16 @@ class _RegionCardState extends State<_RegionCard> {
         );
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      elevation: 1,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ExpansionTile(
         maintainState: true,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        collapsedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -561,7 +656,12 @@ class _RegionCardState extends State<_RegionCard> {
                 children: [
                   const Text(
                     'REGION  ',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey,
+                      letterSpacing: 0.4,
+                    ),
                   ),
                   if (_editingName)
                     Expanded(
@@ -580,7 +680,7 @@ class _RegionCardState extends State<_RegionCard> {
                         widget.region.regionName,
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
-                          fontSize: 16,
+                          fontSize: 18,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -611,7 +711,7 @@ class _RegionCardState extends State<_RegionCard> {
                 children: [
                   const Text(
                     'Regional Manager: ',
-                    style: TextStyle(fontSize: 13),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                   ),
                   if (_editingMgr)
                     Expanded(
@@ -664,6 +764,7 @@ class _RegionCardState extends State<_RegionCard> {
                               ),
                             )
                             .displayName,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -777,11 +878,15 @@ class _AreaCardState extends State<_AreaCard> {
           );
 
     return Card(
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
       elevation: 0,
       child: ExpansionTile(
         maintainState: true,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        collapsedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -793,7 +898,12 @@ class _AreaCardState extends State<_AreaCard> {
                 children: [
                   const Text(
                     'AREA  ',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey,
+                      letterSpacing: 0.4,
+                    ),
                   ),
                   if (_editingName)
                     Expanded(
@@ -810,7 +920,10 @@ class _AreaCardState extends State<_AreaCard> {
                     Expanded(
                       child: Text(
                         widget.area.areaName,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -839,7 +952,10 @@ class _AreaCardState extends State<_AreaCard> {
               onExit: (_) => setState(() => _hoverMgr = false),
               child: Row(
                 children: [
-                  const Text('Area Manager: ', style: TextStyle(fontSize: 13)),
+                  const Text(
+                    'Area Manager: ',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
                   if (_editingMgr)
                     Expanded(
                       child: Row(
@@ -889,6 +1005,7 @@ class _AreaCardState extends State<_AreaCard> {
                               ),
                             )
                             .displayName,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -977,17 +1094,23 @@ class _SubareaRowState extends State<_SubareaRow> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // NAME with hover edit
           Expanded(
             child: MouseRegion(
               onEnter: (_) => setState(() => _hoverName = true),
               onExit: (_) => setState(() => _hoverName = false),
-              child: // REPLACE the current "name" section with this:
-              Row(
+              child: Row(
                 children: [
                   if (_editingName)
                     Expanded(
@@ -1004,7 +1127,10 @@ class _SubareaRowState extends State<_SubareaRow> {
                     Expanded(
                       child: Text(
                         widget.sub.subareaName,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -1016,7 +1142,7 @@ class _SubareaRowState extends State<_SubareaRow> {
                     _closeBtn(() {
                       setState(() {
                         _editingName = false;
-                        _nameCtl.text = widget.sub.subareaName; // revert
+                        _nameCtl.text = widget.sub.subareaName;
                       });
                     }),
                   ] else
@@ -1025,18 +1151,16 @@ class _SubareaRowState extends State<_SubareaRow> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          // SE with hover edit -> dropdown + check
+          const SizedBox(width: 14),
           Expanded(
             child: MouseRegion(
               onEnter: (_) => setState(() => _hoverSe = true),
               onExit: (_) => setState(() => _hoverSe = false),
-              child: // REPLACE the current "Sales Executive" section with this:
-              Row(
+              child: Row(
                 children: [
                   const Text(
                     'Sales Executive: ',
-                    style: TextStyle(fontSize: 13),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                   ),
                   Expanded(
                     child: _editingSe
@@ -1050,10 +1174,8 @@ class _SubareaRowState extends State<_SubareaRow> {
                                   items: widget.ses
                                       .map(
                                         (u) => DropdownMenuItem(
-                                          value: u.salesPersonID, // store ID
-                                          child: Text(
-                                            u.displayName,
-                                          ), // show name
+                                          value: u.salesPersonID,
+                                          child: Text(u.displayName),
                                         ),
                                       )
                                       .toList(),
@@ -1069,7 +1191,7 @@ class _SubareaRowState extends State<_SubareaRow> {
                               _closeBtn(() {
                                 setState(() {
                                   _editingSe = false;
-                                  _pendingSe = widget.sub.assignedSE; // revert
+                                  _pendingSe = widget.sub.assignedSE;
                                 });
                               }),
                             ],
@@ -1087,6 +1209,7 @@ class _SubareaRowState extends State<_SubareaRow> {
                                   ),
                                 )
                                 .displayName,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                             overflow: TextOverflow.ellipsis,
                           ),
                   ),

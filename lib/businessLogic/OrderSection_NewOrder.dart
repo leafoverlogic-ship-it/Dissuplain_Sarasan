@@ -184,7 +184,9 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
     final qty = typedQty < 0 ? 0 : typedQty;
 
     final bool useScheme = _billingType == 'With Scheme';
-    _freeQty = useScheme ? (qty ~/ 3) : 0;
+    final schemeBillingQty = p.schemeBillingQty > 0 ? p.schemeBillingQty : 3;
+    final schemeFreeQty = p.schemeFreeQty > 0 ? p.schemeFreeQty : 1;
+    _freeQty = useScheme ? ((qty ~/ schemeBillingQty) * schemeFreeQty) : 0;
 
     _rate = useScheme ? (_mrp * 0.80) : _resolveRateFromProduct(p);
     _total = qty * _rate;
@@ -202,21 +204,9 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
     final int qty = r.qty < 0 ? 0 : r.qty;
 
     if (useScheme) {
-      // Product-specific scheme exceptions
-      final name = r.name.trim().toLowerCase();
-      if (name.contains('udar sanjeevi')) {
-        // 6 free for every 19 billed
-        r.free = (qty ~/ 19) * 6;
-      } else if (name.contains('dr. sardard') || name.contains('dr sardard') || name.contains('sardard inhalar') || name.contains('sardard')) {
-        // 6 free for every 19 billed
-        r.free = (qty ~/ 19) * 6;
-      } else if (name.contains('neerja the oil') || name.contains('neerja')) {
-        // 4 free for every 11 billed
-        r.free = (qty ~/ 11) * 4;
-      } else {
-        // default: 1 free for every 3 billed
-        r.free = qty ~/ 3;
-      }
+      final schemeBillingQty = r.schemeBillingQty > 0 ? r.schemeBillingQty : 3;
+      final schemeFreeQty = r.schemeFreeQty > 0 ? r.schemeFreeQty : 1;
+      r.free = (qty ~/ schemeBillingQty) * schemeFreeQty;
       r.rate = double.parse((r.mrp * 0.80).toStringAsFixed(2));
     } else {
       r.free = 0;
@@ -395,6 +385,8 @@ class _OrderSectionNewOrderState extends State<OrderSectionNewOrder> {
           discountNETBulk: pc.discountNETBulk,
           discountSchemeBulk: pc.discountSchemeBulk,
           freeQtyBulkScheme: pc.freeQtyBulkScheme,
+          schemeBillingQty: p.schemeBillingQty,
+          schemeFreeQty: p.schemeFreeQty,
           manualRate: p.rate,
         ),
       );
@@ -775,6 +767,8 @@ class _MpRow {
   final double discountNETBulk;
   final double discountSchemeBulk;
   final int freeQtyBulkScheme;
+  final int schemeBillingQty;
+  final int schemeFreeQty;
   int qty;
   int free;
   double manualRate;
@@ -793,6 +787,8 @@ class _MpRow {
     required this.discountNETBulk,
     required this.discountSchemeBulk,
     required this.freeQtyBulkScheme,
+    required this.schemeBillingQty,
+    required this.schemeFreeQty,
     this.qty = 0,
     this.free = 0,
     this.manualRate = 0.0,

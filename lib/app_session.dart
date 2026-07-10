@@ -16,6 +16,7 @@ class AppSession {
   String? salesPersonName;
   String? salesPersonId;
   bool? allAccess;
+  bool? deviceLocationEnabled;
   List<String>? allowedRegionIds;
   List<String>? allowedAreaIds;
   List<String>? allowedSubareaIds;
@@ -33,6 +34,7 @@ class AppSession {
       'salesPersonName': salesPersonName ?? '',
       'salesPersonId': salesPersonId ?? '',
       'allAccess': allAccess ?? false,
+      'deviceLocationEnabled': deviceLocationEnabled ?? false,
       'allowedRegionIds': allowedRegionIds ?? const <String>[],
       'allowedAreaIds': allowedAreaIds ?? const <String>[],
       'allowedSubareaIds': allowedSubareaIds ?? const <String>[],
@@ -53,6 +55,7 @@ class AppSession {
       salesPersonName = (payload['salesPersonName'] ?? '').toString();
       salesPersonId = (payload['salesPersonId'] ?? '').toString();
       allAccess = payload['allAccess'] == true;
+      deviceLocationEnabled = payload['deviceLocationEnabled'] == true;
       allowedRegionIds = List<String>.from(payload['allowedRegionIds'] ?? const <String>[]);
       allowedAreaIds = List<String>.from(payload['allowedAreaIds'] ?? const <String>[]);
       allowedSubareaIds = List<String>.from(payload['allowedSubareaIds'] ?? const <String>[]);
@@ -66,6 +69,7 @@ class AppSession {
     salesPersonName = null;
     salesPersonId = null;
     allAccess = null;
+    deviceLocationEnabled = null;
     allowedRegionIds = null;
     allowedAreaIds = null;
     allowedSubareaIds = null;
@@ -80,6 +84,7 @@ class AppSession {
     required String salesPersonName,
     String? salesPersonId,     
     required bool allAccess,
+    bool deviceLocationEnabled = false,
     required List<String> allowedRegionIds,
     required List<String> allowedAreaIds,
     required List<String> allowedSubareaIds,
@@ -88,10 +93,16 @@ class AppSession {
     this.salesPersonName = salesPersonName;
     this.salesPersonId = salesPersonId;
     this.allAccess = allAccess;
+    this.deviceLocationEnabled = deviceLocationEnabled;
     this.allowedRegionIds = List<String>.from(allowedRegionIds);
     this.allowedAreaIds = List<String>.from(allowedAreaIds);
     this.allowedSubareaIds = List<String>.from(allowedSubareaIds);
 
+    saveToStorage();
+  }
+
+  void setDeviceLocationEnabled(bool enabled) {
+    deviceLocationEnabled = enabled;
     saveToStorage();
   }
 }

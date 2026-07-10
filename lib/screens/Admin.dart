@@ -6,6 +6,7 @@ import 'dart:ui';
 import 'TerritoryManagerPage.dart';
 import 'UserManagementPage.dart';
 import 'ProductManagementPage.dart';
+import 'AttendanceLogPage.dart';
 
 class Admin extends StatelessWidget {
   const Admin({super.key});
@@ -40,6 +41,15 @@ class Admin extends StatelessWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const ProductManagementPage()),
+        ),
+      ),
+      _AdminActionCard(
+        title: 'Attendance Log',
+        subtitle: 'Track present/absent by call activity with monthly calendars for each user.',
+        icon: Icons.event_note_outlined,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AttendanceLogPage()),
         ),
       ),
     ];

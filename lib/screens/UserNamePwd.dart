@@ -1,6 +1,9 @@
 import 'dart:ui';
+import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import '../app_session.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../dataLayer/users_repository.dart';
@@ -25,6 +28,146 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
 
   final _db = FirebaseDatabase.instance;
   String _s(dynamic v) => v?.toString().trim() ?? '';
+
+  bool _isDeviceLocationEnabled(Map<String, dynamic> m) {
+    final v = m['deviceLocationEnabled'] ?? m['locationPermissionEnabled'];
+    return v == true || v?.toString().toLowerCase() == 'true';
+  }
+
+  Future<MapEntry<String, Map<String, dynamic>>?> _findUserNodeById(
+    String id,
+  ) async {
+    final snap = await _db.ref('Users').get();
+    final v = snap.value;
+
+    if (v is Map) {
+      for (final e in v.entries) {
+        if (e.value is Map) {
+          final m = Map<String, dynamic>.from(e.value as Map);
+          if (_s(m['SalesPersonID']) == id) {
+            return MapEntry(e.key.toString(), m);
+          }
+        }
+      }
+    } else if (v is List) {
+      for (var i = 0; i < v.length; i++) {
+        final item = v[i];
+        if (item is Map) {
+          final m = Map<String, dynamic>.from(item);
+          if (_s(m['SalesPersonID']) == id) {
+            return MapEntry(i.toString(), m);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<bool> _requestAndPersistDeviceLocation({
+    required String userNodeKey,
+  }) async {
+    Future<Map<String, double>> _browserLocation() async {
+      try {
+        final pos = await html.window.navigator.geolocation
+            .getCurrentPosition();
+        final lat = (pos.coords?.latitude ?? 0).toDouble();
+        final lng = (pos.coords?.longitude ?? 0).toDouble();
+        return {'lat': lat, 'lng': lng};
+      } catch (_) {
+        throw Exception('Location permission denied or unavailable.');
+      }
+    }
+
+    double lat;
+    double lng;
+
+    if (kIsWeb) {
+      final p = await _browserLocation();
+      lat = p['lat'] ?? 0;
+      lng = p['lng'] ?? 0;
+    } else {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location services are off. Please turn them on.');
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return false;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      lat = pos.latitude;
+      lng = pos.longitude;
+    }
+
+    await _db.ref('Users/$userNodeKey').update({
+      'deviceLocationEnabled': true,
+      'deviceLocationEnabledAt': DateTime.now().millisecondsSinceEpoch,
+      'lastKnownLocation': {
+        'lat': lat,
+        'lng': lng,
+      },
+    });
+    AppSession().setDeviceLocationEnabled(true);
+    return true;
+  }
+
+  Future<void> _showEnableLocationPrompt(String userNodeKey) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Enable Device Location'),
+          content: const Text(
+            'To use call logs with map validation, enable device location now. '
+            'You can continue without it, but Activity Logs will require this before adding logs.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                try {
+                  final ok = await _requestAndPersistDeviceLocation(
+                    userNodeKey: userNodeKey,
+                  );
+                  if (!mounted) return;
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        ok
+                            ? 'Device location enabled.'
+                            : 'Location permission not granted.',
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Unable to enable location: $e')),
+                  );
+                }
+              },
+              child: const Text('Enable Device Location'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   // ---- FIX: always return Map<String, dynamic> ----
   Future<Map<String, dynamic>?> _findUser(String id, String pwd) async {
@@ -281,8 +424,9 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
         return;
       }
 
-      final user = await _findUserById(id);
-      if (user == null) {
+      final userNode = await _findUserNodeById(id);
+      final user = userNode?.value;
+      if (user == null || userNode == null) {
         setState(() {
           _error = 'Invalid username or password';
           _loading = false;
@@ -316,7 +460,12 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
         return;
       }
 
-      final roleId = _s(user['salesPersonRoleID']);
+      final roleId = _s(
+        user['salesPersonRoleID'] ??
+        user['salesPersonRoleId'] ??
+        user['SalesPersonRoleID'] ??
+        user['roleId'],
+      );
       final name = _s(user['SalesPersonName']);
       final bool allAccess = (roleId == '4' || roleId == '5');
 
@@ -354,10 +503,16 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
         salesPersonName: name,
         salesPersonId: id,
         allAccess: allAccess,
+        deviceLocationEnabled: _isDeviceLocationEnabled(user),
         allowedRegionIds: regionIds,
         allowedAreaIds: areaIds,
         allowedSubareaIds: subareaIds,
       );
+
+      if (!_isDeviceLocationEnabled(user)) {
+        await _showEnableLocationPrompt(userNode.key);
+      }
+
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => WelcomeLoadingPage(
@@ -756,7 +911,7 @@ class _UserNamePwdPageState extends State<UserNamePwdPage> {
           const SizedBox(height: 22),
           Center(
             child: Text(
-              'v1.8.0',
+              'v1.8.9',
               style: TextStyle(
                 fontSize: 12,
                 color: theme.colorScheme.onSurfaceVariant,

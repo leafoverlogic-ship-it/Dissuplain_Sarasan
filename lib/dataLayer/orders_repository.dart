@@ -6,6 +6,8 @@ class ProductRow {
   final double mrp;
   final double rate;
   final int freePer10;
+  final int schemeBillingQty;
+  final int schemeFreeQty;
   final String? firebaseKey;
 
   static double resolveRate(ProductRow product) {
@@ -18,19 +20,54 @@ class ProductRow {
     required this.mrp,
     required this.rate,
     required this.freePer10,
+    this.schemeBillingQty = 0,
+    this.schemeFreeQty = 0,
     this.firebaseKey,
   });
+
+  static Map<String, int> _legacySchemePairByName(String productName) {
+    final name = productName.trim().toLowerCase();
+    if (name.contains('udar sanjeevi')) return {'n': 19, 'm': 6};
+    if (name.contains('dr. sardard') ||
+        name.contains('dr sardard') ||
+        name.contains('sardard inhalar') ||
+        name.contains('sardard')) {
+      return {'n': 19, 'm': 6};
+    }
+    if (name.contains('neerja the oil') || name.contains('neerja')) {
+      return {'n': 3, 'm': 1};
+    }
+    return {'n': 3, 'm': 1};
+  }
 
   factory ProductRow.fromMap(Map m, {String? fallbackCode, String? firebaseKey}) {
     double _d(v) => double.tryParse(v?.toString() ?? '') ?? 0.0;
     int _i(v) => int.tryParse(v?.toString() ?? '') ?? 0;
     final rawCode = (m['productCode'] ?? fallbackCode ?? '').toString().trim();
+    final rawName = (m['productName'] ?? '').toString();
+    final parsedBillingQty = _i(
+      m['withSchemeBillingQuantity'] ??
+          m['schemeBillingQuantity'] ??
+          m['billingQuantity'] ??
+          0,
+    );
+    final parsedFreeQty = _i(
+      m['withSchemeFreeQuantity'] ??
+          m['schemeFreeQuantity'] ??
+          m['freeQuantity'] ??
+          0,
+    );
+    final legacy = _legacySchemePairByName(rawName);
+    final resolvedBillingQty = parsedBillingQty > 0 ? parsedBillingQty : (legacy['n'] ?? 3);
+    final resolvedFreeQty = parsedFreeQty > 0 ? parsedFreeQty : (legacy['m'] ?? 1);
     return ProductRow(
       productCode: rawCode,
-      productName: (m['productName'] ?? '').toString(),
+      productName: rawName,
       mrp: _d(m['MRP'] ?? m['mrp']),
       rate: _d(m['Rate'] ?? m['rate']),
       freePer10: _i(m['freeQtyPer10'] ?? m['freeQty'] ?? 0),
+      schemeBillingQty: resolvedBillingQty,
+      schemeFreeQty: resolvedFreeQty,
       firebaseKey: firebaseKey,
     );
   }
@@ -143,6 +180,47 @@ class OrderDisplayLine {
   });
 }
 
+class PaymentReceivedLog {
+  final String id;
+  final double amount;
+  final int receivedDate;
+  final String orderID;
+  final String productSummary;
+  final double remainingTotal;
+
+  PaymentReceivedLog({
+    required this.id,
+    required this.amount,
+    required this.receivedDate,
+    required this.orderID,
+    required this.productSummary,
+    required this.remainingTotal,
+  });
+
+  factory PaymentReceivedLog.fromMap(String id, Map m) {
+    double _d(v) => double.tryParse(v?.toString() ?? '') ?? 0.0;
+    int _i(v) => int.tryParse(v?.toString() ?? '') ?? 0;
+    return PaymentReceivedLog(
+      id: id,
+      amount: _d(m['amount']),
+      receivedDate: _i(m['receivedDate']),
+      orderID: (m['orderID'] ?? '').toString(),
+      productSummary: (m['productSummary'] ?? '').toString(),
+      remainingTotal: _d(m['remainingTotal']),
+    );
+  }
+}
+
+class PaymentApplyResult {
+  final double appliedAmount;
+  final double remainingTotal;
+
+  PaymentApplyResult({
+    required this.appliedAmount,
+    required this.remainingTotal,
+  });
+}
+
 class OrderEntry {
   final String orderID;
   final int orderDate;
@@ -168,6 +246,13 @@ class OrderEntry {
   final int deliveryDate;
   final Map<String, dynamic>? productsDetail; // MP-only
   final double? grandTotal; // MP-only (header sum)
+  final double paymentReceivedTotal;
+  final List<PaymentReceivedLog> paymentReceivedHistory;
+  final String businessName;
+  final String businessAddress;
+  final String gstNumber;
+  final String contactPerson;
+  final String mobileNo;
 
   OrderEntry({
     required this.orderID,
@@ -194,11 +279,40 @@ class OrderEntry {
     required this.deliveryDate,
     this.productsDetail,
     this.grandTotal,
+    this.paymentReceivedTotal = 0,
+    this.paymentReceivedHistory = const <PaymentReceivedLog>[],
+    this.businessName = '',
+    this.businessAddress = '',
+    this.gstNumber = '',
+    this.contactPerson = '',
+    this.mobileNo = '',
   });
 
   factory OrderEntry.fromMap(String id, Map m) {
     double _d(v) => double.tryParse(v?.toString() ?? '') ?? 0.0;
     int _i(v) => int.tryParse(v?.toString() ?? '') ?? 0;
+    final history = <PaymentReceivedLog>[];
+    final rawHistory = m['paymentReceivedHistory'];
+    if (rawHistory is Map) {
+      for (final e in rawHistory.entries) {
+        final v = e.value;
+        if (v is Map) {
+          history.add(
+            PaymentReceivedLog.fromMap(
+              e.key.toString(),
+              Map<String, dynamic>.from(v),
+            ),
+          );
+        }
+      }
+      history.sort((a, b) => b.receivedDate.compareTo(a.receivedDate));
+    }
+
+    final rawBusiness = m['businessDetails'];
+    final business = (rawBusiness is Map)
+        ? Map<String, dynamic>.from(rawBusiness)
+        : const <String, dynamic>{};
+
     return OrderEntry(
       orderID: (m['orderID'] ?? id).toString(),
       orderDate: _i(m['orderDate']),
@@ -226,6 +340,13 @@ class OrderEntry {
           ? Map<String, dynamic>.from(m['productsDetail'] as Map)
           : null,
       grandTotal: (m['grandTotal'] != null) ? _d(m['grandTotal']) : null,
+      paymentReceivedTotal: _d(m['paymentReceivedTotal']),
+      paymentReceivedHistory: history,
+      businessName: (business['businessName'] ?? '').toString(),
+      businessAddress: (business['businessAddress'] ?? '').toString(),
+      gstNumber: (business['gstNumber'] ?? '').toString(),
+      contactPerson: (business['contactPerson'] ?? '').toString(),
+      mobileNo: (business['mobileNo'] ?? '').toString(),
     );
   }
 }
@@ -333,6 +454,8 @@ class OrdersRepository {
     required String productName,
     required double mrp,
     required double rate,
+    int schemeBillingQty = 0,
+    int schemeFreeQty = 0,
   }) async {
     final code = productCode.trim();
     if (code.isEmpty) return;
@@ -347,6 +470,8 @@ class OrdersRepository {
       'Rate': rate,
       'mrp': mrp,
       'rate': rate,
+      'withSchemeBillingQuantity': schemeBillingQty,
+      'withSchemeFreeQuantity': schemeFreeQty,
     });
 
     await _removeDuplicateProducts(code, keepKey: targetKey);
@@ -358,6 +483,8 @@ class OrdersRepository {
     required String productName,
     required double mrp,
     required double rate,
+    int schemeBillingQty = 0,
+    int schemeFreeQty = 0,
   }) async {
     final oldCode = oldProductCode.trim();
     final newCode = productCode.trim();
@@ -378,6 +505,8 @@ class OrdersRepository {
       'Rate': rate,
       'mrp': mrp,
       'rate': rate,
+      'withSchemeBillingQuantity': schemeBillingQty,
+      'withSchemeFreeQuantity': schemeFreeQty,
     });
 
     await _removeDuplicateProducts(newCode, keepKey: targetKey);
@@ -424,6 +553,12 @@ class OrdersRepository {
       for (final c in event.snapshot.children) {
         final v = c.value;
         if (v is Map) out.add(DistributorRow.fromMap(v));
+      }
+      // Ensure "Sarasan Health & Hygiene" is always available as an option.
+      const sarasanId = 'SARASAN_HH';
+      const sarasanName = 'Sarasan Health & Hygiene';
+      if (!out.any((d) => d.distributorID == sarasanId)) {
+        out.add(DistributorRow(distributorID: sarasanId, firmName: sarasanName));
       }
       out.sort(
         (a, b) => a.firmName.toLowerCase().compareTo(b.firmName.toLowerCase()),
@@ -552,6 +687,9 @@ class OrdersRepository {
       'ceoApprovalDate': 0,
       'deliveryStatus': 'Undelivered',
       'deliveryDate': 0,
+      'paymentReceivedTotal': 0,
+      'remainingTotal': grandTotal,
+      'paymentReceivedHistory': {},
     });
 
     final clientsQuery = await FirebaseDatabase.instance
@@ -690,5 +828,115 @@ class OrdersRepository {
     final lines = linesFromEntryMP(h);
     final sum = lines.fold<double>(0.0, (a, b) => a + b.totalAmount);
     return double.parse(sum.toStringAsFixed(2));
+  }
+
+  double remainingTotalFromEntryMP(OrderEntry h) {
+    final total = grandTotalFromEntryMP(h);
+    final remaining = total - h.paymentReceivedTotal;
+    if (remaining <= 0) return 0;
+    return double.parse(remaining.toStringAsFixed(2));
+  }
+
+  Future<PaymentApplyResult> recordPaymentReceived({
+    required String customerCode,
+    required String orderID,
+    required double amount,
+    required String productSummary,
+  }) async {
+    if (amount <= 0) {
+      throw Exception('Payment amount must be greater than zero.');
+    }
+
+    final orderRef = _ordersRoot.child(customerCode).child(orderID);
+    final snap = await orderRef.get();
+    if (!snap.exists || snap.value is! Map) {
+      throw Exception('Order not found.');
+    }
+
+    final map = Map<String, dynamic>.from(snap.value as Map);
+    final entry = OrderEntry.fromMap(orderID, map);
+    final currentTotal = grandTotalFromEntryMP(entry);
+    final currentPaid = entry.paymentReceivedTotal;
+    final maxPayable = currentTotal - currentPaid;
+    final applied = amount > maxPayable ? maxPayable : amount;
+    if (applied <= 0) {
+      throw Exception('This order is already fully paid.');
+    }
+
+    final newPaid = currentPaid + applied;
+    final remaining = currentTotal - newPaid;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+
+    final logRef = orderRef.child('paymentReceivedHistory').push();
+    await logRef.set({
+      'amount': double.parse(applied.toStringAsFixed(2)),
+      'receivedDate': nowMs,
+      'orderID': orderID,
+      'productSummary': productSummary,
+      'remainingTotal': double.parse(remaining.toStringAsFixed(2)),
+    });
+
+    await orderRef.update({
+      'paymentReceivedTotal': double.parse(newPaid.toStringAsFixed(2)),
+      'remainingTotal': double.parse(remaining.toStringAsFixed(2)),
+      'lastPaymentReceivedDate': nowMs,
+    });
+
+    return PaymentApplyResult(
+      appliedAmount: double.parse(applied.toStringAsFixed(2)),
+      remainingTotal: double.parse(remaining.toStringAsFixed(2)),
+    );
+  }
+
+  Future<PaymentApplyResult> undoPaymentReceived({
+    required String customerCode,
+    required String orderID,
+    required String paymentLogId,
+  }) async {
+    final orderRef = _ordersRoot.child(customerCode).child(orderID);
+    final snap = await orderRef.get();
+    if (!snap.exists || snap.value is! Map) {
+      throw Exception('Order not found.');
+    }
+
+    final orderMap = Map<String, dynamic>.from(snap.value as Map);
+    final entry = OrderEntry.fromMap(orderID, orderMap);
+    final grandTotal = grandTotalFromEntryMP(entry);
+
+    final historyRef = orderRef.child('paymentReceivedHistory');
+    final targetRef = historyRef.child(paymentLogId);
+    final targetSnap = await targetRef.get();
+    if (!targetSnap.exists) {
+      throw Exception('Payment log not found.');
+    }
+    await targetRef.remove();
+
+    final remainingHistorySnap = await historyRef.get();
+    double recalculatedPaid = 0;
+    if (remainingHistorySnap.exists && remainingHistorySnap.value is Map) {
+      final m = Map<String, dynamic>.from(remainingHistorySnap.value as Map);
+      for (final v in m.values) {
+        if (v is Map) {
+          final amt =
+              double.tryParse((v['amount'] ?? '').toString()) ?? 0.0;
+          recalculatedPaid += amt;
+        }
+      }
+    }
+
+    if (recalculatedPaid < 0) recalculatedPaid = 0;
+    if (recalculatedPaid > grandTotal) recalculatedPaid = grandTotal;
+
+    final remaining = grandTotal - recalculatedPaid;
+    await orderRef.update({
+      'paymentReceivedTotal': double.parse(recalculatedPaid.toStringAsFixed(2)),
+      'remainingTotal': double.parse(remaining.toStringAsFixed(2)),
+      'lastPaymentUndoAt': DateTime.now().millisecondsSinceEpoch,
+    });
+
+    return PaymentApplyResult(
+      appliedAmount: double.parse(recalculatedPaid.toStringAsFixed(2)),
+      remainingTotal: double.parse(remaining.toStringAsFixed(2)),
+    );
   }
 }

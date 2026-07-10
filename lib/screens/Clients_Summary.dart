@@ -248,6 +248,37 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
     return user.salesPersonName;
   }
 
+  Set<String> _creatorScopedSubareaIds() {
+    if (_creatorUserId.isEmpty) return const <String>{};
+    final out = <String>{};
+    _assignedSEBySubareaId.forEach((subareaId, assignedSeId) {
+      if (_s(assignedSeId) == _creatorUserId && _s(subareaId).isNotEmpty) {
+        out.add(_s(subareaId));
+      }
+    });
+    return out;
+  }
+
+  Set<String> _creatorScopedAreaIds() {
+    final creatorSubs = _creatorScopedSubareaIds();
+    if (creatorSubs.isEmpty) return const <String>{};
+    return _subAreas
+        .where((s) => creatorSubs.contains(_s(s.subareaId)))
+        .map((s) => _s(s.areaId))
+        .where((id) => id.isNotEmpty)
+        .toSet();
+  }
+
+  Set<String> _creatorScopedRegionIds() {
+    final creatorAreas = _creatorScopedAreaIds();
+    if (creatorAreas.isEmpty) return const <String>{};
+    return _areas
+        .where((a) => creatorAreas.contains(_s(a.areaId)))
+        .map((a) => _s(a.regionId))
+        .where((id) => id.isNotEmpty)
+        .toSet();
+  }
+
   // normalize helper (reuse yours if you already have one)
   String _norm(String? s) => (s ?? '').trim();
   final Map<String, Map<String, dynamic>> _clientByCode = {};
@@ -580,12 +611,32 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
           )
           .salesPersonName
           .trim();
+      final selectedIdLc = selectedId.toLowerCase();
+      final selectedUserNameLc = selectedUserName.toLowerCase();
 
       pool = pool.where((c) {
         final creator = (c.createdBy ?? '').trim();
-        if (creator.isEmpty) return false;
-        if (creator == selectedId) return true;
-        if (selectedUserName.isNotEmpty && creator == selectedUserName) return true;
+        final creatorLc = creator.toLowerCase();
+        final salesPersonName = (c.salesPersonName ?? '').trim();
+        final salesPersonNameLc = salesPersonName.toLowerCase();
+        final assignedSeId = _s(_assignedSEBySubareaId[c.subareaId]);
+        final assignedSeIdLc = assignedSeId.toLowerCase();
+
+        if (creatorLc.isNotEmpty) {
+          if (creatorLc == selectedIdLc) return true;
+          if (selectedUserNameLc.isNotEmpty && creatorLc == selectedUserNameLc) {
+            return true;
+          }
+        }
+
+        if (salesPersonNameLc.isNotEmpty && selectedUserNameLc.isNotEmpty) {
+          if (salesPersonNameLc == selectedUserNameLc) return true;
+        }
+
+        if (assignedSeIdLc.isNotEmpty && assignedSeIdLc == selectedIdLc) {
+          return true;
+        }
+
         return false;
       });
     }
@@ -1165,7 +1216,7 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                               const SizedBox(height: 6),
                               if (['2', '3', '4', '5', '6', '7'].contains(widget.roleId))
                                 _rowDropdown(
-                                  label: 'Created By',
+                                  label: 'Salesperson Wise',
                                   value: _creatorUserId,
                                   items: _lu
                                       ? const [
@@ -1184,6 +1235,9 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                                             : _creatorItems()),
                                   onChanged: (id) => setState(() {
                                     _creatorUserId = id ?? '';
+                                    _regionId = '';
+                                    _areaId = '';
+                                    _subareaId = '';
                                   }),
                                 ),
                             ],
@@ -1321,21 +1375,32 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
                         ),
                       )
                     else
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: clients.length,
-                        itemBuilder: (_, i) => TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0, end: 1),
-                          duration: Duration(milliseconds: 260 + (i % 8) * 70),
-                          curve: Curves.easeOutCubic,
-                          builder: (context, t, child) => Transform.translate(
-                            offset: Offset(0, (1 - t) * 24),
-                            child: Opacity(opacity: t, child: child),
-                          ),
-                          child: _clientPlate(clients[i]),
-                        ),
-                      ),
+                      (clients.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 22,
+                              ),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text('No Clients Found'),
+                              ),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: clients.length,
+                              itemBuilder: (_, i) => TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0, end: 1),
+                                duration: Duration(milliseconds: 260 + (i % 8) * 70),
+                                curve: Curves.easeOutCubic,
+                                builder: (context, t, child) => Transform.translate(
+                                  offset: Offset(0, (1 - t) * 24),
+                                  child: Opacity(opacity: t, child: child),
+                                ),
+                                child: _clientPlate(clients[i]),
+                              ),
+                            )),
                     const SizedBox(height: 110),
                   ],
                 ),
@@ -1450,6 +1515,11 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       }
     }
 
+    if (_creatorUserId.isNotEmpty) {
+      final creatorRegionIds = _creatorScopedRegionIds();
+      pool = pool.where((r) => creatorRegionIds.contains(_s(r.regionId)));
+    }
+
     // Remove any with empty id or name and de-duplicate by id
     final seen = <String>{};
     final rows =
@@ -1526,6 +1596,11 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       }
     }
 
+    if (_creatorUserId.isNotEmpty) {
+      final creatorAreaIds = _creatorScopedAreaIds();
+      pool = pool.where((a) => creatorAreaIds.contains(_s(a.areaId)));
+    }
+
     final rows = pool.toList()
       ..sort(
         (a, b) => a.areaName.toLowerCase().compareTo(b.areaName.toLowerCase()),
@@ -1584,6 +1659,15 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
       }
     }
 
+    if (_creatorUserId.isNotEmpty) {
+      final creatorSubIds = _creatorScopedSubareaIds();
+      pool = pool.where((s) => creatorSubIds.contains(_s(s.subareaId)));
+    }
+
+    if (_regionId.isNotEmpty) {
+      pool = pool.where((s) => _s(s.regionId) == _regionId);
+    }
+
     final rows = pool.toList()
       ..sort(
         (a, b) =>
@@ -1603,13 +1687,18 @@ class _ClientsSummaryPageState extends State<ClientsSummaryPage> {
 
   List<DropdownMenuItem<String>> _creatorItems() {
     final rows = _users
-        .where((u) => _s(u.salesPersonRoleId) == '1')
+        .where(
+          (u) => _s(u.salesPersonRoleId) == '1' && _s(u.salesPersonId).isNotEmpty,
+        )
         .toList()
       ..sort((a, b) => a.salesPersonName.toLowerCase().compareTo(b.salesPersonName.toLowerCase()));
 
+    final seenUserIds = <String>{};
+    final uniqueRows = rows.where((u) => seenUserIds.add(_s(u.salesPersonId))).toList();
+
     return [
       const DropdownMenuItem(value: '', child: Text('All')),
-      ...rows.map(
+      ...uniqueRows.map(
         (u) => DropdownMenuItem(
           value: _s(u.salesPersonId),
           child: Text(u.salesPersonName.isNotEmpty ? u.salesPersonName : 'Unnamed'),
@@ -1803,7 +1892,7 @@ class FilteredClientsTablePage extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(12),
         child: rows.isEmpty
-            ? const Center(child: Text('No clients match the filter.'))
+            ? const Center(child: Text('No Clients Found'))
             : Scrollbar(
                 controller: hCtrl,
                 thumbVisibility: true,

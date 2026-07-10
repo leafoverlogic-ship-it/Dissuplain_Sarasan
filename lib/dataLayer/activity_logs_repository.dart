@@ -8,6 +8,9 @@ class ActivityLogEntry {
   final DateTime dateTime; // when the activity happened
   final DateTime?
   createdAt; // when the log was created (server timestamp if available)
+  final double? locationLat;
+  final double? locationLng;
+  final DateTime? locationCapturedAt;
 
   ActivityLogEntry({
     required this.id,
@@ -16,6 +19,9 @@ class ActivityLogEntry {
     required this.message,
     required this.dateTime,
     this.createdAt,
+    this.locationLat,
+    this.locationLng,
+    this.locationCapturedAt,
   });
 
   factory ActivityLogEntry.fromMap(String id, Map<dynamic, dynamic> m) {
@@ -33,6 +39,9 @@ class ActivityLogEntry {
       message: (m['message'] ?? '').toString().trim(),
       dateTime: _ts(m['dateTimeMillis']) ?? DateTime.now(),
       createdAt: _ts(m['createdAt']),
+      locationLat: double.tryParse((m['locationLat'] ?? '').toString()),
+      locationLng: double.tryParse((m['locationLng'] ?? '').toString()),
+      locationCapturedAt: _ts(m['locationCapturedAt']),
     );
   }
 }
@@ -79,6 +88,9 @@ class ActivityLogsRepository {
     required DateTime dateTime,
     String? userId,
     String? response,
+    double? locationLat,
+    double? locationLng,
+    DateTime? locationCapturedAt,
   }) async {
     final key = _ref.push().key!;
     await _ref.child(key).set({
@@ -87,7 +99,11 @@ class ActivityLogsRepository {
       'message': message,
       'dateTimeMillis': dateTime.millisecondsSinceEpoch,
       if (userId != null && userId.isNotEmpty) 'userId': userId,
-       if (response != null && response.isNotEmpty) 'Response': response,
+      if (response != null && response.isNotEmpty) 'Response': response,
+      if (locationLat != null) 'locationLat': locationLat,
+      if (locationLng != null) 'locationLng': locationLng,
+      if (locationCapturedAt != null)
+        'locationCapturedAt': locationCapturedAt.millisecondsSinceEpoch,
       'createdAt': ServerValue.timestamp,
     });
 

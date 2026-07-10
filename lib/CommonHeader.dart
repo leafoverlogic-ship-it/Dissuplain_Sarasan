@@ -39,9 +39,7 @@ class CommonHeader extends StatelessWidget implements PreferredSizeWidget {
 
   bool get _canViewSalesRegister {
     final sess = AppSession();
-    final currentRoleId = (sess.roleId ?? '').trim();
-    final currentSalesPersonId = (sess.salesPersonId ?? '').trim();
-    return currentRoleId == '4' || currentSalesPersonId == 'SS-1132';
+    return (sess.roleId ?? '').trim().isNotEmpty;
   }
 
   void _logout(BuildContext context) {

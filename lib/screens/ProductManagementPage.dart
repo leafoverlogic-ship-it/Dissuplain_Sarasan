@@ -110,6 +110,16 @@ class _ProductManagementPageState extends State<ProductManagementPage> {
     final nameCtrl = TextEditingController(text: safeExisting?.productName ?? '');
     final mrpCtrl = TextEditingController(text: safeExisting?.mrp == 0 ? '' : (safeExisting?.mrp ?? 0).toString());
     final rateCtrl = TextEditingController(text: safeExisting?.rate == 0 ? '' : (safeExisting?.rate ?? 0).toString());
+    final schemeBillingQtyCtrl = TextEditingController(
+      text: (safeExisting?.schemeBillingQty ?? 0) == 0
+          ? ''
+          : (safeExisting?.schemeBillingQty ?? 0).toString(),
+    );
+    final schemeFreeQtyCtrl = TextEditingController(
+      text: (safeExisting?.schemeFreeQty ?? 0) == 0
+          ? ''
+          : (safeExisting?.schemeFreeQty ?? 0).toString(),
+    );
 
     final formKey = GlobalKey<FormState>();
 
@@ -171,6 +181,52 @@ class _ProductManagementPageState extends State<ProductManagementPage> {
                       Expanded(child: _buildField('Rate', rateCtrl, required: true, keyboardType: TextInputType.number)),
                     ],
                   ),
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Theme.of(ctx).colorScheme.outlineVariant),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'With Scheme',
+                          style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Free Quantity for every Billing Quantity.',
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildField(
+                                'Billing Quantity',
+                                schemeBillingQtyCtrl,
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildField(
+                                'Free Quantity',
+                                schemeFreeQtyCtrl,
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -187,6 +243,26 @@ class _ProductManagementPageState extends State<ProductManagementPage> {
                           final name = nameCtrl.text.trim();
                           final mrp = double.tryParse(mrpCtrl.text.trim()) ?? 0;
                           final rate = double.tryParse(rateCtrl.text.trim()) ?? 0;
+                          final schemeBillingQty = int.tryParse(
+                                schemeBillingQtyCtrl.text.trim(),
+                              ) ??
+                              0;
+                          final schemeFreeQty = int.tryParse(
+                                schemeFreeQtyCtrl.text.trim(),
+                              ) ??
+                              0;
+
+                          if ((schemeBillingQty > 0 && schemeFreeQty <= 0) ||
+                              (schemeFreeQty > 0 && schemeBillingQty <= 0)) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Enter both Billing Quantity and Free Quantity for With Scheme',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
 
                           if (isEditing) {
                             await _repo.updateProduct(
@@ -195,6 +271,8 @@ class _ProductManagementPageState extends State<ProductManagementPage> {
                               productName: name,
                               mrp: mrp,
                               rate: rate,
+                              schemeBillingQty: schemeBillingQty,
+                              schemeFreeQty: schemeFreeQty,
                             );
                           } else {
                             await _repo.addProduct(
@@ -202,6 +280,8 @@ class _ProductManagementPageState extends State<ProductManagementPage> {
                               productName: name,
                               mrp: mrp,
                               rate: rate,
+                              schemeBillingQty: schemeBillingQty,
+                              schemeFreeQty: schemeFreeQty,
                             );
                           }
                           if (mounted) {
@@ -256,6 +336,7 @@ class _ProductManagementPageState extends State<ProductManagementPage> {
             fillColor: Colors.white.withOpacity(0.72),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
             hintText: label,
+            hintStyle: const TextStyle(color: Colors.black87),
           ),
         ),
       ],
@@ -482,6 +563,11 @@ class _ProductCardState extends State<_ProductCard> {
                     child: _DetailTile(label: 'Rate', value: '₹${widget.product.rate.toStringAsFixed(2)}'),
                   ),
                 ],
+              ),
+              const SizedBox(height: 8),
+              _DetailTile(
+                label: 'With Scheme',
+                value: '${widget.product.schemeBillingQty}:${widget.product.schemeFreeQty}  (Billing:Free)',
               ),
             ],
           ),

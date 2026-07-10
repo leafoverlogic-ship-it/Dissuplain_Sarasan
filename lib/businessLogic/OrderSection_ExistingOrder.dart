@@ -32,6 +32,7 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
     'CEO Cancelled',
   ];
   final ScrollController _hCtrl = ScrollController();
+  final Map<String, TextEditingController> _paymentCtrls = {};
 
   String _filter = 'All';
   List<OrderEntry> _orders = [];
@@ -81,6 +82,9 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
 
   @override
   void dispose() {
+    for (final c in _paymentCtrls.values) {
+      c.dispose();
+    }
     _hCtrl.dispose();
     super.dispose();
   }
@@ -186,6 +190,170 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
     await FirebaseDatabase.instance
         .ref('Orders/${widget.customerCode}/$orderId')
         .update({'deliveryStatus': normalized, 'deliveryDate': deliveryDate});
+  }
+
+  Future<void> _applyPaymentForOrder(OrderEntry order) async {
+    final ctrl = _paymentCtrls.putIfAbsent(
+      order.orderID,
+      () => TextEditingController(),
+    );
+    final raw = ctrl.text.trim().replaceAll(',', '').replaceAll('₹', '');
+    final amount = double.tryParse(raw) ?? 0;
+    if (amount <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid payment amount.')),
+      );
+      return;
+    }
+
+    final lines = widget.ordersRepo.linesFromEntryMP(order);
+    final productSummary = lines.isEmpty
+        ? 'Products'
+        : (lines.length == 1
+              ? lines.first.productName
+              : '${lines.first.productName} +${lines.length - 1} more');
+
+    try {
+      final result = await widget.ordersRepo.recordPaymentReceived(
+        customerCode: widget.customerCode,
+        orderID: order.orderID,
+        amount: amount,
+        productSummary: productSummary,
+      );
+      ctrl.clear();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Payment applied: ${_inr(result.appliedAmount)}. Remaining total: ${_inr(result.remainingTotal)}.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to apply payment: $e')),
+      );
+    }
+  }
+
+  String _inr(double value) => '\u20B9${value.toStringAsFixed(2)}';
+
+  String _distributorName(String id) {
+    if (id.trim().isEmpty) return '\u2014';
+    for (final d in _distributors) {
+      if (d.distributorID == id) return d.firmName;
+    }
+    return id;
+  }
+
+  String _formatLogDate(int ms) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+    final d = dt.day;
+    final suffix =
+        (d >= 11 && d <= 13)
+            ? 'th'
+            : (d % 10 == 1)
+            ? 'st'
+            : (d % 10 == 2)
+            ? 'nd'
+            : (d % 10 == 3)
+            ? 'rd'
+            : 'th';
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '$d$suffix ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  Future<void> _undoPaymentLog(PaymentReceivedLog log) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Undo Payment'),
+          content: Text(
+            'Undo payment of ${_inr(log.amount)} for ${log.orderID}? This will restore the order total accordingly.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Undo'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (ok != true) return;
+
+    try {
+      final result = await widget.ordersRepo.undoPaymentReceived(
+        customerCode: widget.customerCode,
+        orderID: log.orderID,
+        paymentLogId: log.id,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Payment undone. Updated paid total: ${_inr(result.appliedAmount)}. Remaining total: ${_inr(result.remainingTotal)}.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to undo payment: $e')),
+      );
+    }
+  }
+
+  Widget _historyField({
+    required BuildContext context,
+    required String label,
+    required String value,
+    bool emphasize = false,
+  }) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
+            color: emphasize
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface,
+          ),
+        ),
+      ],
+    );
   }
 
   Color _statusColor(String status) {
@@ -417,6 +585,12 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
     final children = <Widget>[];
     for (final h in src) {
       final total = widget.ordersRepo.grandTotalFromEntryMP(h);
+      final remaining = widget.ordersRepo.remainingTotalFromEntryMP(h);
+      final paid = h.paymentReceivedTotal;
+      final paymentCtrl = _paymentCtrls.putIfAbsent(
+        h.orderID,
+        () => TextEditingController(),
+      );
       final key = _orderKeys.putIfAbsent(h.orderID, () => GlobalKey());
       final status = _displayStatus(h.orderConfirmation, total);
       children.add(
@@ -443,13 +617,14 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Row(
                   children: [
-                    Expanded(flex: 16, child: _head('Order ID')),
-                    Expanded(flex: 14, child: _head('Status')),
-                    Expanded(flex: 14, child: _head('Type')),
-                    Expanded(flex: 22, child: _head('Distributor')),
-                    Expanded(flex: 14, child: _head('Order Date')),
+                    Expanded(flex: 15, child: _head('Order ID')),
+                    Expanded(flex: 13, child: _head('Status')),
+                    Expanded(flex: 13, child: _head('Type')),
+                    Expanded(flex: 21, child: _head('Distributor')),
+                    Expanded(flex: 13, child: _head('Order Date')),
                     Expanded(flex: 12, child: _head('Delivery')),
                     Expanded(flex: 12, child: _head('Del. Date')),
+                    Expanded(flex: 18, child: _head('Payment Received Today')),
                     Expanded(flex: 10, child: _head('Total')),
                   ],
                 ),
@@ -460,22 +635,22 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
               Row(
                 children: [
                   Expanded(
-                    flex: 16,
+                    flex: 15,
                     child: Text(
                       h.orderID,
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                     ),
                   ),
                   Expanded(
-                    flex: 14,
+                    flex: 13,
                     child: _statusBadge(status),
                   ),
-                  Expanded(flex: 14, child: Text(h.orderType, style: const TextStyle(fontSize: 13))),
+                  Expanded(flex: 13, child: Text(h.orderType, style: const TextStyle(fontSize: 13))),
                   Expanded(
-                    flex: 22,
+                    flex: 21,
                     child: Text(_distName(h.distributorID), style: const TextStyle(fontSize: 13)),
                   ),
-                  Expanded(flex: 14, child: Text(_fmtDate(h.orderDate), style: const TextStyle(fontSize: 13))),
+                  Expanded(flex: 13, child: Text(_fmtDate(h.orderDate), style: const TextStyle(fontSize: 13))),
                   Expanded(
                     flex: 12,
                     child: Container(
@@ -524,12 +699,52 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
                   ),
                   Expanded(flex: 12, child: Text(_fmtDeliveryDate(h.deliveryDate), style: const TextStyle(fontSize: 13))),
                   Expanded(
+                    flex: 18,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: paymentCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              hintText: 'e.g. 80000',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 36,
+                          child: FilledButton(
+                            onPressed: () => _applyPaymentForOrder(h),
+                            child: const Text('Apply'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
                     flex: 10,
                     child: Align(
                       alignment: Alignment.centerRight,
-                      child: Text(
-                        total.toStringAsFixed(2),
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            _inr(remaining),
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Paid ${_inr(paid)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -562,6 +777,290 @@ class _OrderSectionExistingOrderState extends State<OrderSectionExistingOrder> {
         ),
       );
     }
+
+    final allLogs = <({PaymentReceivedLog log, OrderEntry order})>[];
+    for (final order in src) {
+      for (final log in order.paymentReceivedHistory) {
+        allLogs.add((log: log, order: order));
+      }
+    }
+    allLogs.sort((a, b) => b.log.receivedDate.compareTo(a.log.receivedDate));
+
+    children.add(
+      Container(
+        margin: const EdgeInsets.only(top: 6, bottom: 4),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface.withOpacity(isDark ? 0.72 : 0.88),
+          border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.8)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Payment Received History',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            if (allLogs.isEmpty)
+              Text(
+                'No payment logs yet.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              )
+            else
+              ...allLogs.map(
+                (entry) {
+                  final log = entry.log;
+                  final order = entry.order;
+                  final gst = order.gstNumber.trim();
+                  return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.35),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant.withOpacity(0.6),
+                    ),
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 700;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.payments_outlined,
+                                size: 18,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Payment Received',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  _inr(log.amount),
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: theme.colorScheme.onPrimaryContainer,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              OutlinedButton.icon(
+                                onPressed: () => _undoPaymentLog(log),
+                                icon: const Icon(Icons.undo, size: 16),
+                                label: const Text('Undo'),
+                                style: OutlinedButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          if (isNarrow)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _historyField(
+                                  context: context,
+                                  label: 'Date',
+                                  value: _formatLogDate(log.receivedDate),
+                                ),
+                                const SizedBox(height: 8),
+                                _historyField(
+                                  context: context,
+                                  label: 'Order ID',
+                                  value: log.orderID,
+                                ),
+                                const SizedBox(height: 8),
+                                _historyField(
+                                  context: context,
+                                  label: 'Product',
+                                  value: log.productSummary,
+                                ),
+                                const SizedBox(height: 8),
+                                _historyField(
+                                  context: context,
+                                  label: 'Remaining Total',
+                                  value: _inr(log.remainingTotal),
+                                  emphasize: true,
+                                ),
+                                const SizedBox(height: 8),
+                                _historyField(
+                                  context: context,
+                                  label: 'Distributor',
+                                  value: _distributorName(order.distributorID),
+                                ),
+                                const SizedBox(height: 8),
+                                _historyField(
+                                  context: context,
+                                  label: 'Business Name',
+                                  value: order.businessName.isEmpty
+                                      ? '\u2014'
+                                      : order.businessName,
+                                ),
+                                const SizedBox(height: 8),
+                                _historyField(
+                                  context: context,
+                                  label: 'Business Address',
+                                  value: order.businessAddress.isEmpty
+                                      ? '\u2014'
+                                      : order.businessAddress,
+                                ),
+                                const SizedBox(height: 8),
+                                _historyField(
+                                  context: context,
+                                  label: 'Contact Person',
+                                  value: order.contactPerson.isEmpty
+                                      ? '\u2014'
+                                      : order.contactPerson,
+                                ),
+                                const SizedBox(height: 8),
+                                _historyField(
+                                  context: context,
+                                  label: 'Mobile No.',
+                                  value: order.mobileNo.isEmpty
+                                      ? '\u2014'
+                                      : order.mobileNo,
+                                ),
+                                if (gst.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  _historyField(
+                                    context: context,
+                                    label: 'GST Number',
+                                    value: gst,
+                                  ),
+                                ],
+                              ],
+                            )
+                          else
+                            Wrap(
+                              spacing: 28,
+                              runSpacing: 12,
+                              children: [
+                                SizedBox(
+                                  width: 180,
+                                  child: _historyField(
+                                    context: context,
+                                    label: 'Date',
+                                    value: _formatLogDate(log.receivedDate),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 220,
+                                  child: _historyField(
+                                    context: context,
+                                    label: 'Order ID',
+                                    value: log.orderID,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 260,
+                                  child: _historyField(
+                                    context: context,
+                                    label: 'Product',
+                                    value: log.productSummary,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 180,
+                                  child: _historyField(
+                                    context: context,
+                                    label: 'Remaining Total',
+                                    value: _inr(log.remainingTotal),
+                                    emphasize: true,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 220,
+                                  child: _historyField(
+                                    context: context,
+                                    label: 'Distributor',
+                                    value: _distributorName(order.distributorID),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 220,
+                                  child: _historyField(
+                                    context: context,
+                                    label: 'Business Name',
+                                    value: order.businessName.isEmpty
+                                        ? '\u2014'
+                                        : order.businessName,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 260,
+                                  child: _historyField(
+                                    context: context,
+                                    label: 'Business Address',
+                                    value: order.businessAddress.isEmpty
+                                        ? '\u2014'
+                                        : order.businessAddress,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 220,
+                                  child: _historyField(
+                                    context: context,
+                                    label: 'Contact Person',
+                                    value: order.contactPerson.isEmpty
+                                        ? '\u2014'
+                                        : order.contactPerson,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 180,
+                                  child: _historyField(
+                                    context: context,
+                                    label: 'Mobile No.',
+                                    value: order.mobileNo.isEmpty
+                                        ? '\u2014'
+                                        : order.mobileNo,
+                                  ),
+                                ),
+                                if (gst.isNotEmpty)
+                                  SizedBox(
+                                    width: 220,
+                                    child: _historyField(
+                                      context: context,
+                                      label: 'GST Number',
+                                      value: gst,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
 
     _scheduleJump();
 

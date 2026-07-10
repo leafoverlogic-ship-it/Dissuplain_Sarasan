@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:html' as html;
 import 'package:firebase_database/firebase_database.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../dataLayer/customers_repository.dart'; // only for the widget param type
 import '../../dataLayer/activity_logs_repository.dart';
@@ -38,9 +43,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
 
   bool get _canViewOrdersSection {
     final session = AppSession();
-    final roleId = (session.roleId ?? '').trim();
-    final salesPersonId = (session.salesPersonId ?? '').trim();
-    return roleId == '4' || salesPersonId == 'SS-1132';
+    return (session.roleId ?? '').trim().isNotEmpty;
   }
 
   final _db = FirebaseDatabase.instance;
@@ -833,7 +836,9 @@ return Scaffold(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: LayoutBuilder(
                         builder: (ctx, constraints) {
-                          final isNarrow = MediaQuery.of(ctx).size.width < 600;
+                          final screenWidth = MediaQuery.of(ctx).size.width;
+                          final isNarrow =
+                              screenWidth < 720 || constraints.maxWidth < 560;
                           if (isNarrow) {
                             // Mobile: stacked label and field
                             return Column(
@@ -884,11 +889,14 @@ return Scaffold(
                             );
                           }
                           // Wide: original two-column layout
+                          final labelWidth =
+                              (constraints.maxWidth * 0.34).clamp(140.0, 220.0)
+                                  as double;
                           return Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               SizedBox(
-                                width: 220,
+                                width: labelWidth,
                                 child: Text(
                                   pretty,
                                   style: const TextStyle(
@@ -1040,8 +1048,10 @@ return Scaffold(
                           itemBuilder: rowBuilder,
                         ),
 
-                        _BlockSection(
+                        _DetailsSection(
                           title: 'Business Details',
+                          bannerLabel: 'Business Snapshot',
+                          bannerIcon: Icons.business_center_outlined,
                           rows: [
                             _pair('Business_Name', _s(m['Business_Name'])),
                             _pair('Business_Address', _s(m['Business_Address'])),
@@ -1135,23 +1145,94 @@ return Scaffold(
 class _DetailsSection extends StatelessWidget {
   final List<MapEntry<String, String>> rows;
   final Widget Function(String key, String value)? itemBuilder;
+  final String title;
+  final String bannerLabel;
+  final IconData bannerIcon;
 
-  const _DetailsSection({required this.rows, this.itemBuilder, Key? key})
-    : super(key: key);
+  const _DetailsSection({
+    required this.rows,
+    this.itemBuilder,
+    this.title = 'Details',
+    this.bannerLabel = 'Client Snapshot',
+    this.bannerIcon = Icons.auto_awesome,
+    Key? key,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return _Section(
-      title: 'Details',
+      title: title,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: rows
-            .map(
-              (e) => itemBuilder != null
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  cs.primaryContainer.withOpacity(0.75),
+                  cs.secondaryContainer.withOpacity(0.55),
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cs.outlineVariant),
+            ),
+            child: Row(
+              children: [
+                Icon(bannerIcon, size: 18, color: cs.onPrimaryContainer),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    bannerLabel,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: cs.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${rows.length} fields',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onPrimaryContainer.withOpacity(0.85),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...rows.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final e = entry.value;
+            final tileColor = idx.isEven
+                ? cs.surfaceContainerHighest.withOpacity(0.42)
+                : cs.primaryContainer.withOpacity(0.20);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              decoration: BoxDecoration(
+                color: tileColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
+                boxShadow: [
+                  BoxShadow(
+                    color: cs.shadow.withOpacity(0.06),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: itemBuilder != null
                   ? itemBuilder!(e.key, e.value)
                   : _defaultKvRow(context, e.key, e.value),
-            )
-            .toList(),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -1177,55 +1258,6 @@ class _DetailsSection extends StatelessWidget {
   }
 }
 
-class _BlockSection extends StatelessWidget {
-  final String title;
-  final List<MapEntry<String, String>> rows;
-  final Widget Function(String key, String value)? itemBuilder;
-
-  const _BlockSection({
-    required this.title,
-    required this.rows,
-    this.itemBuilder,
-    Key? key,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return _Section(
-      title: title,
-      child: Column(
-        children: rows
-            .map(
-              (e) => itemBuilder != null
-                  ? itemBuilder!(e.key, e.value)
-                  : _defaultRow(context, e.key, e.value),
-            )
-            .toList(),
-      ),
-    );
-  }
-
-  Widget _defaultRow(BuildContext context, String key, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 220,
-            child: Text(
-              _ClientDetailsPageState._pretty(key),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(child: Text(value.isEmpty ? '—' : value)),
-        ],
-      ),
-    );
-  }
-}
-
 class _Section extends StatelessWidget {
   final String title;
   final Widget child;
@@ -1234,9 +1266,10 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      padding: const EdgeInsets.all(12),
+      margin: EdgeInsets.fromLTRB(isMobile ? 10 : 16, 12, isMobile ? 10 : 16, 0),
+      padding: EdgeInsets.all(isMobile ? 10 : 12),
       decoration: BoxDecoration(
 border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(12),
@@ -1297,6 +1330,10 @@ class _ActivityLogsState extends State<_ActivityLogs> {
   bool _followupSyncedFromLogs = false;
   bool _showVisitDayFallbackNote = false;
   bool _firstCallBackfillChecked = false;
+  bool _isCapturingLocation = false;
+  bool _isLocationLocked = false;
+  double? _locationLat;
+  double? _locationLng;
 
   @override
   void initState() {
@@ -1508,6 +1545,18 @@ class _ActivityLogsState extends State<_ActivityLogs> {
   }
 
   Future<void> _submitLog() async {
+    if (AppSession().deviceLocationEnabled != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enable Device Location to set up map.')),
+      );
+      return;
+    }
+    if (!_isLocationLocked || _locationLat == null || _locationLng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Set map location before adding log.')),
+      );
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
     final resolvedType = ActivityLogFormState.resolveType(
@@ -1522,6 +1571,9 @@ class _ActivityLogsState extends State<_ActivityLogs> {
       dateTime: _activityDateTime,
       userId: (AppSession().salesPersonId ?? '').trim(),
       response: (_response ?? '').trim(),
+      locationLat: _locationLat,
+      locationLng: _locationLng,
+      locationCapturedAt: DateTime.now(),
     );
 
     // Move old followupDate -> lastFollowupDate, set new followupDatea
@@ -1544,6 +1596,193 @@ class _ActivityLogsState extends State<_ActivityLogs> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Activity log added')));
+  }
+
+  void _openInGoogleMaps(double lat, double lng) {
+    final url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+    if (kIsWeb) {
+      html.window.open(url, '_blank');
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Open in maps: $url')));
+    }
+  }
+
+  Future<void> _captureLocationFromDevice() async {
+    if (_isLocationLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location is already locked for this log.')),
+      );
+      return;
+    }
+    if (AppSession().deviceLocationEnabled != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enable Device Location to set up map.')),
+      );
+      return;
+    }
+
+    setState(() => _isCapturingLocation = true);
+    try {
+      if (kIsWeb) {
+        Map<String, double> p;
+        try {
+          final pos = await html.window.navigator.geolocation
+              .getCurrentPosition();
+          p = {
+            'lat': (pos.coords?.latitude ?? 0).toDouble(),
+            'lng': (pos.coords?.longitude ?? 0).toDouble(),
+          };
+        } catch (_) {
+          throw Exception('Enable Device Location');
+        }
+        if (!mounted) return;
+        setState(() {
+          _locationLat = p['lat'];
+          _locationLng = p['lng'];
+          _isLocationLocked = true;
+        });
+        return;
+      } else {
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          throw Exception('Location services are disabled.');
+        }
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        AppSession().setDeviceLocationEnabled(false);
+        throw Exception('Enable Device Location');
+        final p = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+        if (!mounted) return;
+        setState(() {
+          _locationLat = p.latitude;
+          _locationLng = p.longitude;
+          _isLocationLocked = true;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _isCapturingLocation = false);
+    }
+  }
+
+  Widget _buildLocationMapSection() {
+    final theme = Theme.of(context);
+    final enabled = AppSession().deviceLocationEnabled == true;
+    final hasLocation = _locationLat != null && _locationLng != null;
+
+    return InkWell(
+      onTap: () async {
+        if (!enabled) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Enable Device Location')),
+          );
+          return;
+        }
+        await _captureLocationFromDevice();
+      },
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Map',
+          border: OutlineInputBorder(),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                height: 220,
+                width: double.infinity,
+                child: (!enabled || !hasLocation)
+                    ? Container(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        alignment: Alignment.center,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            !enabled
+                                ? 'Enable Device Location'
+                                : (_isCapturingLocation
+                                      ? 'Capturing current location...'
+                                      : 'Tap map to capture your current location.'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      )
+                    : FlutterMap(
+                        options: MapOptions(
+                          initialCenter: LatLng(_locationLat!, _locationLng!),
+                          initialZoom: 15,
+                          interactionOptions: const InteractionOptions(
+                            flags: InteractiveFlag.none,
+                          ),
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate:
+                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'dissuplain_app_web_mobile',
+                          ),
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: LatLng(_locationLat!, _locationLng!),
+                                width: 42,
+                                height: 42,
+                                child: Icon(
+                                  Icons.location_on,
+                                  color: theme.colorScheme.error,
+                                  size: 38,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (hasLocation)
+              Text(
+                'Locked location: ${_locationLat!.toStringAsFixed(6)}, ${_locationLng!.toStringAsFixed(6)}',
+                style: TextStyle(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+            if (!enabled)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text(
+                  'Enable Device Location to set up map.',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -1719,6 +1958,8 @@ class _ActivityLogsState extends State<_ActivityLogs> {
                     : null,
               ),
               const SizedBox(height: 12),
+              _buildLocationMapSection(),
+              const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
                 child: SizedBox(
@@ -1781,11 +2022,62 @@ child: Text(
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (_, i) {
                 final l = logs[i];
+                final hasLocation =
+                    l.locationLat != null && l.locationLng != null;
+                final isRole4 = (AppSession().roleId ?? '').trim() == '4';
                 return ListTile(
                   dense: true,
                   leading: const Icon(Icons.event_note_outlined),
                   title: Text('${l.type}  •  ${_formatDT(l.dateTime)}'),
-                  subtitle: Text(l.message),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (l.message.isNotEmpty) Text(l.message),
+                      if (hasLocation) ...[
+                        const SizedBox(height: 4),
+                        InkWell(
+                          onTap: isRole4
+                              ? () => _openInGoogleMaps(
+                                  l.locationLat!,
+                                  l.locationLng!,
+                                )
+                              : null,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.location_on,
+                                size: 16,
+                                color: isRole4
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Location: ${l.locationLat!.toStringAsFixed(6)}, ${l.locationLng!.toStringAsFixed(6)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isRole4
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                  decoration: isRole4
+                                      ? TextDecoration.underline
+                                      : TextDecoration.none,
+                                  fontWeight: isRole4
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 );
               },
             );

@@ -74,7 +74,13 @@ class UsersRepository {
       final spName = _s(m['SalesPersonName'] ?? m['salesPersonName'] ?? m['name']);
       final email  = _s(m['EmailAddress'] ?? m['email'] ?? m['Email']);
       final phone  = _s(m['PhoneNumber'] ?? m['phone'] ?? m['Mobile'] ?? m['mobile']);
-      final roleId = _s(m['SalesPersonRoleID'] ?? m['salesPersonRoleId'] ?? m['RoleID'] ?? m['roleId']);
+      final roleId = _s(
+        m['SalesPersonRoleID'] ??
+        m['salesPersonRoleID'] ??
+        m['salesPersonRoleId'] ??
+        m['RoleID'] ??
+        m['roleId'],
+      );
       final mgrId  = _s(m['ReportingPersonID'] ?? m['reportingPersonID'] ?? m['reportingPersonId'] ?? m['ManagerID'] ?? m['managerId']);
       final pwd    = _s(m['loginPwd'] ?? m['LoginPwd'] ?? m['password'] ?? m['Password']);
 
